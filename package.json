@@ -2,7 +2,7 @@
   "name": "gd32-eclipse-bridge",
   "displayName": "GD32 Eclipse Bridge",
   "description": "Build GD32 Eclipse CDT managed projects from Visual Studio Code using the vendor headless builder.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "local",
   "license": "MIT",
   "engines": {
@@ -20,6 +20,7 @@
   "activationEvents": [
     "workspaceContains:.cproject",
     "onCommand:gd32EclipseBridge.build",
+    "onCommand:gd32EclipseBridge.flash",
     "onCommand:gd32EclipseBridge.cleanBuild",
     "onCommand:gd32EclipseBridge.selectConfiguration",
     "onCommand:gd32EclipseBridge.selectInstallation",
@@ -44,7 +45,13 @@
     "commands": [
       {
         "command": "gd32EclipseBridge.build",
-        "title": "GD32 Eclipse: Build"
+        "title": "GD32 Eclipse: Build",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "gd32EclipseBridge.flash",
+        "title": "GD32 Eclipse: Flash",
+        "icon": "$(zap)"
       },
       {
         "command": "gd32EclipseBridge.cleanBuild",
@@ -89,7 +96,8 @@
       "gd32EclipseBridge": [
         {
           "id": "gd32EclipseBridge.sidebar",
-          "name": "Project"
+          "name": "Project",
+          "type": "webview"
         }
       ]
     },
@@ -100,8 +108,32 @@
           "when": "view == gd32EclipseBridge.sidebar",
           "group": "navigation"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "gd32EclipseBridge.build",
+          "when": "gd32EclipseBridge.projectOpen",
+          "group": "navigation@-100"
+        },
+        {
+          "command": "gd32EclipseBridge.flash",
+          "when": "gd32EclipseBridge.projectOpen",
+          "group": "navigation@-99"
+        }
       ]
     },
+    "keybindings": [
+      {
+        "command": "gd32EclipseBridge.build",
+        "key": "ctrl+b",
+        "when": "gd32EclipseBridge.projectOpen && editorTextFocus"
+      },
+      {
+        "command": "gd32EclipseBridge.flash",
+        "key": "f11",
+        "when": "gd32EclipseBridge.projectOpen && editorTextFocus"
+      }
+    ],
     "configuration": {
       "title": "GD32 Eclipse Bridge",
       "properties": {
@@ -109,7 +141,7 @@
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Folder containing GD32EmbeddedBuilderc.exe, or the full executable path."
+          "description": "GD32EmbeddedBuilder.exe, GD32EmbeddedBuilderc.exe, or the folder containing them."
         },
         "gd32EclipseBridge.workspacePath": {
           "type": "string",
@@ -122,6 +154,18 @@
           "default": "",
           "scope": "resource",
           "description": "CDT configuration name. Empty selects a Debug configuration when available."
+        },
+        "gd32EclipseBridge.launchConfiguration": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Eclipse GD32 launch configuration used by Flash."
+        },
+        "gd32EclipseBridge.elfPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "ELF file used by Flash. Empty uses the program path from the selected Eclipse launch configuration."
         },
         "gd32EclipseBridge.autoImport": {
           "type": "boolean",

@@ -9,6 +9,8 @@ const {
   getExecutable
 } = require('../src/headless-command');
 const { findProjectRoot, readProjectInfo } = require('../src/project-model');
+const { createFlashPlan, splitCommandLine } = require('../src/flash-runner');
+const { parseLaunchConfiguration, resolveElfPath } = require('../src/launch-model');
 
 async function createFixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gd32-eclipse-bridge-'));
@@ -68,6 +70,10 @@ test('accepts either an installation folder or executable path', () => {
     getExecutable('D:\\GD32EB\\GD32EmbeddedBuilderc.exe'),
     path.resolve('D:\\GD32EB\\GD32EmbeddedBuilderc.exe')
   );
+  assert.equal(
+    getExecutable('D:\\GD32EB\\GD32EmbeddedBuilder.exe'),
+    path.resolve('D:\\GD32EB\\GD32EmbeddedBuilderc.exe')
+  );
 });
 
 test('creates a stable and project-specific headless workspace path', () => {
@@ -77,4 +83,43 @@ test('creates a stable and project-specific headless workspace path', () => {
   assert.equal(first, repeated);
   assert.notEqual(first, second);
   assert.equal(first.startsWith(path.resolve('D:\\extension-data', 'workspaces')), true);
+});
+
+test('reads GD32 debugger and ELF fields from an Eclipse launch configuration', () => {
+  const launch = parseLaunchConfiguration(`<?xml version="1.0"?>
+<launchConfiguration type="com.gigadevice.debug.gdlink.launchConfigurationType">
+  <stringAttribute key="com.gigadevice.debug.gdlink.server" value="JGDBServer"/>
+  <stringAttribute key="com.gigadevice.debug.launch.jtagDevice" value="J-Link"/>
+  <stringAttribute key="com.gigadevice.debug.jlink.location" value="D:\\Tools\\JLinkGDBServerCL.exe"/>
+  <stringAttribute key="com.gigadevice.debug.launch.serverParam" value="-port 2331 -device GD32L235KBQ6 -if swd"/>
+  <stringAttribute key="org.eclipse.cdt.dsf.gdb.DEBUG_NAME" value="D:\\Tools\\arm-none-eabi-gdb.exe"/>
+  <stringAttribute key="org.eclipse.cdt.launch.PROGRAM_NAME" value="GD ARM MCU Debug\\demo.elf"/>
+  <stringAttribute key="org.eclipse.cdt.launch.PROJECT_ATTR" value="demo"/>
+  <intAttribute key="com.gigadevice.debug.launch.portNumber" value="2331"/>
+  <booleanAttribute key="com.gigadevice.debug.launch.loadImage" value="true"/>
+</launchConfiguration>`, 'D:\\workspace\\demo.launch');
+  assert.equal(launch.debugger, 'J-Link / J-Link GDB Server');
+  assert.equal(launch.port, 2331);
+  assert.equal(resolveElfPath(launch, 'E:\\projects\\demo'), path.resolve('E:\\projects\\demo', 'GD ARM MCU Debug\\demo.elf'));
+});
+
+test('creates a flash plan from vendor GDB server settings', () => {
+  const plan = createFlashPlan({
+    name: 'demo debug',
+    debugger: 'GD-Link / OpenOCD',
+    serverExecutable: 'D:\\Tools\\openocd.exe',
+    serverParameters: '-f "E:\\project files\\openocd.cfg"',
+    gdbExecutable: 'D:\\Tools\\arm-none-eabi-gdb.exe',
+    host: 'localhost',
+    port: 3333,
+    remoteCommand: 'target remote',
+    initCommands: '',
+    resetCommands: '',
+    runCommands: '',
+    loadImage: true
+  }, 'E:\\project files\\demo.elf');
+  assert.deepEqual(plan.serverArguments, ['-f', 'E:\\project files\\openocd.cfg']);
+  assert.equal(plan.gdbArguments.includes('load'), true);
+  assert.equal(plan.gdbArguments.includes('target remote localhost:3333'), true);
+  assert.deepEqual(splitCommandLine('-port 2331 -device "GD32 L235"'), ['-port', '2331', '-device', 'GD32 L235']);
 });

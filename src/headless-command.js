@@ -8,9 +8,12 @@ function getExecutable(installationPath) {
     return undefined;
   }
   const resolved = path.resolve(installationPath);
-  return path.extname(resolved).toLowerCase() === '.exe'
-    ? resolved
-    : path.join(resolved, 'GD32EmbeddedBuilderc.exe');
+  if (path.extname(resolved).toLowerCase() !== '.exe') {
+    return path.join(resolved, 'GD32EmbeddedBuilderc.exe');
+  }
+  return path.basename(resolved).toLowerCase() === 'gd32embeddedbuilder.exe'
+    ? path.join(path.dirname(resolved), 'GD32EmbeddedBuilderc.exe')
+    : resolved;
 }
 
 function getDefaultWorkspacePath(storagePath, projectDirectory) {

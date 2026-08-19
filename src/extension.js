@@ -6,94 +6,16 @@ const {
   getDefaultWorkspacePath,
   getExecutable
 } = require('./headless-command');
+const { createFlashPlan, runFlashPlan } = require('./flash-runner');
+const { discoverLaunchConfigurations, resolveElfPath } = require('./launch-model');
 const { findProjectRoot, readProjectInfo } = require('./project-model');
+const { SidebarProvider } = require('./sidebar-provider');
 
 const CONFIG_SECTION = 'gd32EclipseBridge';
 const TASK_TYPE = 'gd32-eclipse';
 let extensionContext;
-
-class SidebarProvider {
-  constructor() {
-    this.changeEmitter = new vscode.EventEmitter();
-    this.onDidChangeTreeData = this.changeEmitter.event;
-  }
-
-  refresh() {
-    this.changeEmitter.fire();
-  }
-
-  getTreeItem(item) {
-    return item;
-  }
-
-  async getChildren() {
-    const roots = await discoverProjectRoots();
-    if (roots.length === 0) {
-      const item = new vscode.TreeItem('No Eclipse CDT project found');
-      item.description = 'Open a folder containing .project and .cproject';
-      item.iconPath = new vscode.ThemeIcon('warning');
-      return [item];
-    }
-
-    const projectDirectory = roots[0];
-    const project = await readProjectInfo(projectDirectory);
-    const config = configurationFor(projectDirectory);
-    const installationPath = config.get('installationPath', '');
-    const configuredWorkspace = config.get('workspacePath', '');
-    const requestedConfiguration = config.get('configuration', '');
-    const configuration = project.configurations.includes(requestedConfiguration)
-      ? requestedConfiguration
-      : chooseDefaultConfiguration(project.configurations);
-    const workspacePath = configuredWorkspace
-      ? path.resolve(configuredWorkspace)
-      : getDefaultWorkspacePath(extensionContext.globalStorageUri.fsPath, projectDirectory);
-
-    return [
-      createSidebarItem('Project', project.projectName, 'project', undefined, projectDirectory),
-      createSidebarItem(
-        'Embedded Builder',
-        installationPath ? path.basename(path.resolve(installationPath)) : 'Not configured',
-        installationPath ? 'tools' : 'warning',
-        'gd32EclipseBridge.selectInstallation',
-        installationPath || 'Click to select the GD32 Embedded Builder installation'
-      ),
-      createSidebarItem(
-        'Build Configuration',
-        configuration || 'None found',
-        'settings-gear',
-        'gd32EclipseBridge.selectConfiguration',
-        'Click to select a configuration from .cproject'
-      ),
-      createSidebarItem(
-        'Headless Workspace',
-        configuredWorkspace ? path.basename(workspacePath) : 'Dedicated per project',
-        'folder-library',
-        'gd32EclipseBridge.selectWorkspace',
-        workspacePath
-      ),
-      createSidebarItem(
-        'Auto Import',
-        config.get('autoImport', true) ? 'Enabled' : 'Disabled',
-        config.get('autoImport', true) ? 'check' : 'circle-slash',
-        'gd32EclipseBridge.toggleAutoImport',
-        'Click to toggle automatic Eclipse project import'
-      ),
-      createSidebarItem('Build', configuration || '', 'tools', 'gd32EclipseBridge.build'),
-      createSidebarItem('Clean and Build', configuration || '', 'debug-restart', 'gd32EclipseBridge.cleanBuild')
-    ];
-  }
-}
-
-function createSidebarItem(label, description, icon, command, tooltip) {
-  const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
-  item.description = description;
-  item.tooltip = tooltip || label;
-  item.iconPath = new vscode.ThemeIcon(icon);
-  if (command) {
-    item.command = { command, title: label };
-  }
-  return item;
-}
+let flashOutput;
+let flashRunning = false;
 
 function configurationFor(projectDirectory) {
   return vscode.workspace.getConfiguration(CONFIG_SECTION, vscode.Uri.file(projectDirectory));
@@ -253,26 +175,59 @@ async function executeBuild(mode) {
 }
 
 async function selectInstallation() {
-  const selected = await vscode.window.showOpenDialog({
-    canSelectFiles: false,
-    canSelectFolders: true,
-    canSelectMany: false,
-    openLabel: 'Select GD32 Embedded Builder folder'
-  });
-  if (!selected?.[0]) {
-    return;
+  try {
+    const root = await selectProjectRoot();
+    if (!root) {
+      return;
+    }
+    const config = configurationFor(root);
+    const current = config.get('installationPath', '');
+    const history = extensionContext.globalState.get('installationHistory', []);
+    const candidates = [...new Set([current, ...history].filter(Boolean))];
+    const browse = { label: 'Browse for GD32EmbeddedBuilder.exe...', browse: true };
+    const selected = await vscode.window.showQuickPick(
+      [
+        ...candidates.map((value) => ({
+          label: path.basename(value),
+          description: value,
+          value
+        })),
+        browse
+      ],
+      { placeHolder: 'Select the GD32 Embedded Builder IDE', matchOnDescription: true }
+    );
+    if (!selected) {
+      return;
+    }
+
+    let installationPath = selected.value;
+    if (selected.browse) {
+      const files = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: true,
+        canSelectMany: false,
+        filters: { Executables: ['exe'] },
+        openLabel: 'Select GD32 Embedded Builder'
+      });
+      if (!files?.[0]) {
+        return;
+      }
+      installationPath = files[0].fsPath;
+    }
+    const executable = getExecutable(installationPath);
+    if (!(await pathExists(executable))) {
+      await vscode.window.showErrorMessage(`GD32EmbeddedBuilderc.exe was not found beside ${installationPath}.`);
+      return;
+    }
+    await config.update('installationPath', installationPath, vscode.ConfigurationTarget.WorkspaceFolder);
+    await extensionContext.globalState.update(
+      'installationHistory',
+      [installationPath, ...history.filter((value) => value !== installationPath)].slice(0, 8)
+    );
+    await vscode.window.showInformationMessage(`GD32 Embedded Builder: ${installationPath}`);
+  } catch (error) {
+    await vscode.window.showErrorMessage(error.message);
   }
-  const executable = path.join(selected[0].fsPath, 'GD32EmbeddedBuilderc.exe');
-  if (!(await pathExists(executable))) {
-    await vscode.window.showErrorMessage(`GD32EmbeddedBuilderc.exe was not found in ${selected[0].fsPath}.`);
-    return;
-  }
-  const root = await selectProjectRoot();
-  if (!root) {
-    return;
-  }
-  await configurationFor(root).update('installationPath', selected[0].fsPath, vscode.ConfigurationTarget.WorkspaceFolder);
-  await vscode.window.showInformationMessage('GD32 Embedded Builder installation configured.');
 }
 
 async function selectConfiguration() {
@@ -368,6 +323,151 @@ async function toggleAutoImport() {
   }
 }
 
+async function getSidebarModel(projectDirectory) {
+  const root = projectDirectory || (await discoverProjectRoots())[0];
+  if (!root) {
+    return undefined;
+  }
+  const project = await readProjectInfo(root);
+  const config = configurationFor(root);
+  const installationPath = config.get('installationPath', '');
+  const requestedConfiguration = config.get('configuration', '');
+  const configuration = project.configurations.includes(requestedConfiguration)
+    ? requestedConfiguration
+    : chooseDefaultConfiguration(project.configurations);
+  const launches = await discoverLaunchConfigurations(root, project.projectName, installationPath);
+  const requestedLaunch = config.get('launchConfiguration', '');
+  const launch = launches.find((item) => item.name === requestedLaunch) || launches[0];
+  const configuredWorkspace = config.get('workspacePath', '');
+  const workspacePath = configuredWorkspace
+    ? path.resolve(configuredWorkspace)
+    : getDefaultWorkspacePath(extensionContext.globalStorageUri.fsPath, root);
+  const elfPath = launch
+    ? resolveElfPath(launch, root, config.get('elfPath', ''))
+    : config.get('elfPath', '');
+
+  return {
+    ...project,
+    installationPath,
+    configurations: project.configurations,
+    configuration,
+    launches,
+    launchConfiguration: launch?.name || '',
+    elfPath,
+    debugger: launch?.debugger || '',
+    workspacePath,
+    workspaceLabel: configuredWorkspace ? workspacePath : 'Dedicated workspace per project',
+    autoImport: config.get('autoImport', true)
+  };
+}
+
+async function updateProjectSetting(key, value) {
+  return updateProjectSettings({ [key]: value });
+}
+
+async function updateProjectSettings(values) {
+  const root = await selectProjectRoot();
+  if (root) {
+    const config = configurationFor(root);
+    for (const [key, value] of Object.entries(values)) {
+      await config.update(key, value, vscode.ConfigurationTarget.WorkspaceFolder);
+    }
+  }
+}
+
+async function selectElfFile() {
+  const root = await selectProjectRoot();
+  if (!root) {
+    return;
+  }
+  const model = await getSidebarModel(root);
+  const defaultUri = model?.elfPath ? vscode.Uri.file(path.dirname(model.elfPath)) : vscode.Uri.file(root);
+  const selected = await vscode.window.showOpenDialog({
+    canSelectFiles: true,
+    canSelectFolders: false,
+    canSelectMany: false,
+    defaultUri,
+    filters: { 'ELF files': ['elf'], 'All files': ['*'] },
+    openLabel: 'Select ELF File'
+  });
+  if (selected?.[0]) {
+    await configurationFor(root).update('elfPath', selected[0].fsPath, vscode.ConfigurationTarget.WorkspaceFolder);
+  }
+}
+
+async function executeFlash() {
+  if (flashRunning) {
+    await vscode.window.showWarningMessage('A GD32 flash operation is already running.');
+    return;
+  }
+  try {
+    const root = await selectProjectRoot();
+    if (!root) {
+      return;
+    }
+    const model = await getSidebarModel(root);
+    const launch = model.launches.find((item) => item.name === model.launchConfiguration);
+    const plan = createFlashPlan(launch, model.elfPath);
+    flashRunning = true;
+    flashOutput.clear();
+    flashOutput.show(true);
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Flashing ${path.basename(plan.elfPath)}`,
+        cancellable: false
+      },
+      () => runFlashPlan(plan, (text) => flashOutput.append(text))
+    );
+    await vscode.window.showInformationMessage(`Flash completed: ${path.basename(plan.elfPath)}`);
+  } catch (error) {
+    flashOutput?.appendLine(`\nERROR: ${error.message}`);
+    await vscode.window.showErrorMessage(`GD32 flash failed: ${error.message}`, 'Show Output').then((action) => {
+      if (action === 'Show Output') {
+        flashOutput?.show(true);
+      }
+    });
+  } finally {
+    flashRunning = false;
+  }
+}
+
+async function handleSidebarAction(message) {
+  switch (message.action) {
+    case 'build':
+      await executeBuild('build');
+      break;
+    case 'flash':
+      await executeFlash();
+      break;
+    case 'selectInstallation':
+      await selectInstallation();
+      break;
+    case 'setBuildConfiguration':
+      await updateProjectSetting('configuration', message.value);
+      break;
+    case 'setLaunchConfiguration':
+      await updateProjectSettings({ launchConfiguration: message.value, elfPath: '' });
+      break;
+    case 'selectElf':
+      await selectElfFile();
+      break;
+    case 'selectWorkspace':
+      await selectWorkspace();
+      break;
+    case 'setAutoImport':
+      await updateProjectSetting('autoImport', Boolean(message.value));
+      break;
+    default:
+      break;
+  }
+}
+
+async function updateProjectContext() {
+  const projectOpen = (await discoverProjectRoots()).length > 0;
+  await vscode.commands.executeCommand('setContext', 'gd32EclipseBridge.projectOpen', projectOpen);
+}
+
 async function showProjectInfo() {
   try {
     const context = await resolveBuildContext();
@@ -386,7 +486,8 @@ async function showProjectInfo() {
 
 function activate(context) {
   extensionContext = context;
-  const sidebarProvider = new SidebarProvider();
+  flashOutput = vscode.window.createOutputChannel('GD32 Eclipse Flash');
+  const sidebarProvider = new SidebarProvider(getSidebarModel, handleSidebarAction);
   const taskProvider = vscode.tasks.registerTaskProvider(TASK_TYPE, {
     async provideTasks() {
       try {
@@ -408,15 +509,25 @@ function activate(context) {
 
   context.subscriptions.push(
     taskProvider,
-    sidebarProvider.changeEmitter,
-    vscode.window.registerTreeDataProvider('gd32EclipseBridge.sidebar', sidebarProvider),
+    flashOutput,
+    vscode.window.registerWebviewViewProvider('gd32EclipseBridge.sidebar', sidebarProvider, {
+      webviewOptions: { retainContextWhenHidden: true }
+    }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration(CONFIG_SECTION)) {
-        sidebarProvider.refresh();
+        void sidebarProvider.refresh();
       }
     }),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => sidebarProvider.refresh()),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      void updateProjectContext();
+      void sidebarProvider.refresh();
+    }),
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      void updateProjectContext();
+      void sidebarProvider.refresh();
+    }),
     vscode.commands.registerCommand('gd32EclipseBridge.build', () => executeBuild('build')),
+    vscode.commands.registerCommand('gd32EclipseBridge.flash', executeFlash),
     vscode.commands.registerCommand('gd32EclipseBridge.cleanBuild', () => executeBuild('cleanBuild')),
     vscode.commands.registerCommand('gd32EclipseBridge.selectConfiguration', selectConfiguration),
     vscode.commands.registerCommand('gd32EclipseBridge.selectInstallation', selectInstallation),
@@ -425,10 +536,12 @@ function activate(context) {
     vscode.commands.registerCommand('gd32EclipseBridge.refreshSidebar', () => sidebarProvider.refresh()),
     vscode.commands.registerCommand('gd32EclipseBridge.showProjectInfo', showProjectInfo)
   );
+  void updateProjectContext();
 }
 
 function deactivate() {
   extensionContext = undefined;
+  flashOutput = undefined;
 }
 
 module.exports = {
