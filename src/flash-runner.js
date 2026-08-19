@@ -27,16 +27,16 @@ function quoteGdbPath(filePath) {
 
 function createFlashPlan(launch, elfPath) {
   if (!launch) {
-    throw new Error('No Eclipse flash configuration is selected.');
+    throw new Error('没有选择Eclipse烧录配置。');
   }
   if (!launch.serverExecutable) {
-    throw new Error(`No GDB Server executable was found in "${launch.name}".`);
+    throw new Error(`烧录配置“${launch.name}”中没有GDB Server路径。`);
   }
   if (!launch.gdbExecutable) {
-    throw new Error(`No GDB executable was found in "${launch.name}".`);
+    throw new Error(`烧录配置“${launch.name}”中没有GDB路径。`);
   }
   if (!elfPath) {
-    throw new Error(`No ELF file was found in "${launch.name}".`);
+    throw new Error(`烧录配置“${launch.name}”中没有ELF文件。`);
   }
 
   const resetCommands = commandLines(launch.resetCommands);
@@ -73,12 +73,28 @@ function createFlashPlan(launch, elfPath) {
   };
 }
 
-function waitForServerReady(serverProcess, onOutput, timeoutMilliseconds = 10000) {
+function serverOutputState(output, debuggerName) {
+  if (/InitTarget\(\).*error|Could not connect to target|Target connection failed/i.test(output)) {
+    return 'failed';
+  }
+  const ready = /j-link/i.test(debuggerName)
+    ? /Connected to target|Waiting for GDB connection/i.test(output)
+    : /Listening on (?:TCP\/IP )?port \d+.*gdb connections/i.test(output);
+  return ready ? 'ready' : 'waiting';
+}
+
+function cancellationError() {
+  const error = new Error('烧录已由用户停止。');
+  error.name = 'AbortError';
+  return error;
+}
+
+function waitForServerReady(serverProcess, debuggerName, onOutput, signal, timeoutMilliseconds = 15000) {
   return new Promise((resolve, reject) => {
     let output = '';
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error('Timed out waiting for GDB Server to become ready.'));
+      reject(new Error('等待GDB Server连接目标超时，已停止烧录。'));
     }, timeoutMilliseconds);
     function cleanup() {
       clearTimeout(timer);
@@ -86,44 +102,61 @@ function waitForServerReady(serverProcess, onOutput, timeoutMilliseconds = 10000
       serverProcess.stderr?.off('data', inspect);
       serverProcess.off('exit', exited);
       serverProcess.off('error', failed);
+      signal?.removeEventListener('abort', cancelled);
     }
     function inspect(data) {
       const text = data.toString();
       output += text;
       onOutput(text);
-      if (/Listening on (?:TCP\/IP )?port \d+/i.test(output)) {
+      const state = serverOutputState(output, debuggerName);
+      if (state === 'failed') {
+        cleanup();
+        reject(new Error('J-Link无法连接目标，InitTarget失败。请检查芯片型号、接线、复位方式或改用已验证的GD-Link/OpenOCD配置。'));
+      } else if (state === 'ready') {
         cleanup();
         resolve();
       }
     }
     function exited(code) {
       cleanup();
-      reject(new Error(`GDB Server exited with code ${code} before becoming ready.`));
+      reject(new Error(`GDB Server在连接目标前退出，退出代码：${code}。`));
     }
     function failed(error) {
       cleanup();
       reject(error);
     }
+    function cancelled() {
+      cleanup();
+      reject(cancellationError());
+    }
     serverProcess.stdout?.on('data', inspect);
     serverProcess.stderr?.on('data', inspect);
     serverProcess.once('exit', exited);
     serverProcess.once('error', failed);
+    signal?.addEventListener('abort', cancelled, { once: true });
+    if (signal?.aborted) {
+      cancelled();
+    }
   });
 }
 
-function waitForExit(process, label, onOutput, timeoutMilliseconds = 60000) {
+function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 60000) {
+  let output = '';
   process.stdout?.on('data', (data) => onOutput(data.toString()));
   process.stderr?.on('data', (data) => onOutput(data.toString()));
+  process.stdout?.on('data', (data) => { output += data.toString(); });
+  process.stderr?.on('data', (data) => { output += data.toString(); });
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
       process.kill();
-      reject(new Error(`${label} did not exit within ${Math.round(timeoutMilliseconds / 1000)} seconds.`));
+      reject(new Error(`${label}在${Math.round(timeoutMilliseconds / 1000)}秒内没有结束，已强制停止。`));
     }, timeoutMilliseconds);
     function cleanup() {
       clearTimeout(timer);
       process.off('error', failed);
       process.off('exit', exited);
+      signal?.removeEventListener('abort', cancelled);
     }
     function failed(error) {
       cleanup();
@@ -131,14 +164,26 @@ function waitForExit(process, label, onOutput, timeoutMilliseconds = 60000) {
     }
     function exited(code) {
       cleanup();
-      if (code === 0) {
+      const commandFailed = /Remote communication error|Target disconnected|not supported by this target|You can't do that|Load failed/i.test(output);
+      if (code === 0 && !commandFailed) {
         resolve();
+      } else if (commandFailed) {
+        reject(new Error('GDB下载失败：目标连接中断或烧录命令未被GDB Server接受。'));
       } else {
-        reject(new Error(`${label} exited with code ${code}.`));
+        reject(new Error(`${label}异常退出，退出代码：${code}。`));
       }
+    }
+    function cancelled() {
+      cleanup();
+      process.kill();
+      reject(cancellationError());
     }
     process.once('error', failed);
     process.once('exit', exited);
+    signal?.addEventListener('abort', cancelled, { once: true });
+    if (signal?.aborted) {
+      cancelled();
+    }
   });
 }
 
@@ -156,27 +201,32 @@ async function terminateProcess(process, timeoutMilliseconds = 2000) {
   });
 }
 
-async function runFlashPlan(plan, onOutput = () => {}) {
+async function runFlashPlan(plan, onOutput = () => {}, signal) {
   await Promise.all([
     fs.access(plan.serverExecutable),
     fs.access(plan.gdbExecutable),
     fs.access(plan.elfPath)
   ]);
-  onOutput(`Flash configuration: ${plan.launchName}\nDebugger: ${plan.debugger}\nELF: ${plan.elfPath}\n\n`);
+  if (signal?.aborted) {
+    throw cancellationError();
+  }
+  onOutput(`烧录配置：${plan.launchName}\n调试器：${plan.debugger}\nELF文件：${plan.elfPath}\n\n正在连接目标...\n`);
   const server = spawn(plan.serverExecutable, plan.serverArguments, {
     cwd: path.dirname(plan.serverExecutable),
     windowsHide: true
   });
   let gdb;
   try {
-    await waitForServerReady(server, onOutput);
+    await waitForServerReady(server, plan.debugger, onOutput, signal);
+    onOutput('\n目标连接成功，开始下载ELF...\n');
     server.stdout?.on('data', (data) => onOutput(data.toString()));
     server.stderr?.on('data', (data) => onOutput(data.toString()));
     gdb = spawn(plan.gdbExecutable, plan.gdbArguments, {
       cwd: path.dirname(plan.elfPath),
       windowsHide: true
     });
-    await waitForExit(gdb, 'GDB', onOutput);
+    await waitForExit(gdb, 'GDB', onOutput, signal);
+    onOutput('\n烧录完成，目标程序已复位运行。\n');
   } finally {
     await terminateProcess(gdb);
     await terminateProcess(server);
@@ -186,5 +236,6 @@ async function runFlashPlan(plan, onOutput = () => {}) {
 module.exports = {
   createFlashPlan,
   runFlashPlan,
+  serverOutputState,
   splitCommandLine
 };

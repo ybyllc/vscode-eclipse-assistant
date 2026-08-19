@@ -9,7 +9,7 @@ const {
   getExecutable
 } = require('../src/headless-command');
 const { findProjectRoot, readProjectInfo } = require('../src/project-model');
-const { createFlashPlan, splitCommandLine } = require('../src/flash-runner');
+const { createFlashPlan, serverOutputState, splitCommandLine } = require('../src/flash-runner');
 const { parseLaunchConfiguration, resolveElfPath } = require('../src/launch-model');
 
 async function createFixture() {
@@ -147,4 +147,23 @@ test('resets and runs a J-Link target after flashing', () => {
   assert.equal(plan.gdbArguments.includes('continue'), false);
   assert.equal(plan.gdbArguments.includes('disconnect'), true);
   assert.equal(plan.gdbArguments.some((argument) => argument.includes('&#13;')), false);
+});
+
+test('waits for a J-Link target connection instead of its listening socket', () => {
+  assert.equal(
+    serverOutputState('Listening on TCP/IP port 2331', 'J-Link / J-Link GDB Server'),
+    'waiting'
+  );
+  assert.equal(
+    serverOutputState('Connected to target\nWaiting for GDB connection', 'J-Link / J-Link GDB Server'),
+    'ready'
+  );
+  assert.equal(
+    serverOutputState('ERROR: J-Link script file function InitTarget() returned with error code -1', 'J-Link / J-Link GDB Server'),
+    'failed'
+  );
+  assert.equal(
+    serverOutputState('Info : Listening on port 3333 for gdb connections', 'GD-Link / OpenOCD'),
+    'ready'
+  );
 });

@@ -15,7 +15,7 @@ const CONFIG_SECTION = 'gd32EclipseBridge';
 const TASK_TYPE = 'gd32-eclipse';
 let extensionContext;
 let flashOutput;
-let flashRunning = false;
+let flashAbortController;
 
 function configurationFor(projectDirectory) {
   return vscode.workspace.getConfiguration(CONFIG_SECTION, vscode.Uri.file(projectDirectory));
@@ -396,10 +396,13 @@ async function selectElfFile() {
 }
 
 async function executeFlash() {
-  if (flashRunning) {
-    await vscode.window.showWarningMessage('A GD32 flash operation is already running.');
+  if (flashAbortController) {
+    flashOutput?.appendLine('\n正在停止烧录...');
+    flashAbortController.abort();
+    await vscode.window.showInformationMessage('正在停止当前GD32烧录任务...');
     return;
   }
+  let controller;
   try {
     const root = await selectProjectRoot();
     if (!root) {
@@ -408,27 +411,38 @@ async function executeFlash() {
     const model = await getSidebarModel(root);
     const launch = model.launches.find((item) => item.name === model.launchConfiguration);
     const plan = createFlashPlan(launch, model.elfPath);
-    flashRunning = true;
+    controller = new AbortController();
+    flashAbortController = controller;
     flashOutput.clear();
     flashOutput.show(true);
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `Flashing ${path.basename(plan.elfPath)}`,
-        cancellable: false
+        title: `正在烧录 ${path.basename(plan.elfPath)}`,
+        cancellable: true
       },
-      () => runFlashPlan(plan, (text) => flashOutput.append(text))
-    );
-    await vscode.window.showInformationMessage(`Flash completed: ${path.basename(plan.elfPath)}`);
-  } catch (error) {
-    flashOutput?.appendLine(`\nERROR: ${error.message}`);
-    await vscode.window.showErrorMessage(`GD32 flash failed: ${error.message}`, 'Show Output').then((action) => {
-      if (action === 'Show Output') {
-        flashOutput?.show(true);
+      (_progress, token) => {
+        token.onCancellationRequested(() => controller.abort());
+        return runFlashPlan(plan, (text) => flashOutput.append(text), controller.signal);
       }
-    });
+    );
+    await vscode.window.showInformationMessage(`烧录成功，程序已运行：${path.basename(plan.elfPath)}`);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      flashOutput?.appendLine('\n烧录已停止。');
+      await vscode.window.showInformationMessage('GD32烧录已停止。');
+    } else {
+      flashOutput?.appendLine(`\n烧录失败：${error.message}`);
+      await vscode.window.showErrorMessage(`GD32烧录失败：${error.message}`, '查看输出').then((action) => {
+        if (action === '查看输出') {
+          flashOutput?.show(true);
+        }
+      });
+    }
   } finally {
-    flashRunning = false;
+    if (flashAbortController === controller) {
+      flashAbortController = undefined;
+    }
   }
 }
 

@@ -2,7 +2,7 @@
 
 在 Visual Studio Code 中复用兆易创新 GD32 Embedded Builder工程的构建和烧录配置。插件读取 `.project`、`.cproject` 和 Eclipse `.launch`，不会修改厂家工程文件。
 
-当前版本：`0.3.1`
+当前版本：`0.3.2`
 
 ## 功能
 
@@ -30,6 +30,8 @@
 7. 使用编辑器顶部按钮、侧栏按钮或快捷键执行 Build和Flash。
 
 Flash执行下载后会复位并运行目标程序，再断开 GDB连接，不会停留在 VS Code调试会话。侧栏的 Headless Build折叠区还可以切换 workspace模式和自动导入状态。所有功能仍可通过 `GD32 Eclipse: ...` 命令使用。
+
+烧录过程中再次点击 Flash，或取消 VS Code的烧录进度通知，可以立即停止当前任务。插件生成的连接、成功、失败和停止结果使用中文输出；J-Link/OpenOCD/GDB自身的原始日志保持原文。
 
 默认在 VS Code扩展存储目录中为每个工程创建独立的 Headless Workspace，避免与正在运行的厂家 Eclipse GUI争用 workspace锁。可以通过 `gd32EclipseBridge.workspacePath` 显式指定其他 Eclipse workspace。
 
@@ -140,6 +142,13 @@ npm run package
 每次修改插件时都必须同步检查并更新本 README。新增或变更功能、命令、配置、兼容性、使用步骤、限制和版本号时，应在同一次提交中更新对应说明；即使改动不影响文档，也应确认现有说明仍与实现一致。
 
 ## 版本记录
+
+### 0.3.2
+
+- 修正 J-Link就绪判断：监听端口不代表已连接目标，必须等待目标连接成功后才启动GDB。
+- 识别 `InitTarget`、目标连接失败和GDB远程通信错误，立即停止并给出中文结果。
+- Flash运行中再次点击 Flash即可停止，同时支持取消进度通知。
+- 将插件生成的烧录状态、结果和错误提示改为中文。
 
 ### 0.3.1
 
