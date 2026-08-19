@@ -9,7 +9,12 @@ const {
   getExecutable
 } = require('../src/headless-command');
 const { findProjectRoot, readProjectInfo } = require('../src/project-model');
-const { createFlashPlan, serverOutputState, splitCommandLine } = require('../src/flash-runner');
+const {
+  createFlashPlan,
+  createJLinkCommanderScript,
+  serverOutputState,
+  splitCommandLine
+} = require('../src/flash-runner');
 const { parseLaunchConfiguration, resolveElfPath } = require('../src/launch-model');
 
 async function createFixture() {
@@ -133,7 +138,7 @@ test('resets and runs a J-Link target after flashing', () => {
     serverKind: 'JGDBServer',
     debugger: 'J-Link / J-Link GDB Server',
     serverExecutable: 'D:\\Tools\\JLinkGDBServerCL.exe',
-    serverParameters: '-port 2331',
+    serverParameters: '-port 2331 -device GD32L235KBQ6 -if swd -speed 4000',
     gdbExecutable: 'D:\\Tools\\arm-none-eabi-gdb.exe',
     host: 'localhost',
     port: 2331,
@@ -147,6 +152,15 @@ test('resets and runs a J-Link target after flashing', () => {
   assert.equal(plan.gdbArguments.includes('continue'), false);
   assert.equal(plan.gdbArguments.includes('disconnect'), true);
   assert.equal(plan.gdbArguments.some((argument) => argument.includes('&#13;')), false);
+  assert.equal(plan.jlinkCommanderExecutable, path.resolve('D:\\Tools\\JLink.exe'));
+  assert.equal(plan.jlinkDevice, 'GD32L235KBQ6');
+});
+
+test('creates a one-shot J-Link Commander script that runs and exits', () => {
+  const script = createJLinkCommanderScript('E:\\project files\\demo.elf');
+  assert.match(script, /loadfile "E:\/project files\/demo\.elf"/);
+  assert.match(script, /\r\ng\r\nexit\r\n$/);
+  assert.equal(script.includes('ExitOnError 1'), true);
 });
 
 test('waits for a J-Link target connection instead of its listening socket', () => {

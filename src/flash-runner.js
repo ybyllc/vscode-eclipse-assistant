@@ -1,4 +1,5 @@
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
@@ -23,6 +24,11 @@ function commandLines(value) {
 
 function quoteGdbPath(filePath) {
   return `"${filePath.replace(/\\/g, '/').replace(/"/g, '\\"')}"`;
+}
+
+function argumentValue(argumentsList, name) {
+  const index = argumentsList.findIndex((argument) => argument.toLowerCase() === name.toLowerCase());
+  return index >= 0 ? argumentsList[index + 1] : undefined;
 }
 
 function createFlashPlan(launch, elfPath) {
@@ -60,17 +66,39 @@ function createFlashPlan(launch, elfPath) {
     'disconnect',
     'quit'
   ];
+  const serverArguments = splitCommandLine(launch.serverParameters);
+  const isJLink = /j-link|jgdbserver/i.test(`${launch.serverKind || ''} ${launch.debugger || ''}`);
   return {
     serverExecutable: path.resolve(launch.serverExecutable),
-    serverArguments: splitCommandLine(launch.serverParameters),
+    serverArguments,
     gdbExecutable: path.resolve(launch.gdbExecutable),
     gdbArguments: ['--quiet', '--batch', ...gdbCommands.flatMap((command) => ['-ex', command])],
     host: launch.host || 'localhost',
     port: launch.port || 3333,
     elfPath: path.resolve(elfPath),
     launchName: launch.name,
-    debugger: launch.debugger
+    debugger: launch.debugger,
+    jlinkCommanderExecutable: isJLink
+      ? path.join(path.dirname(path.resolve(launch.serverExecutable)), 'JLink.exe')
+      : '',
+    jlinkDevice: argumentValue(serverArguments, '-device') || '',
+    jlinkInterface: argumentValue(serverArguments, '-if') || launch.interface || 'swd',
+    jlinkSpeed: argumentValue(serverArguments, '-speed') || launch.speed || 'auto'
   };
+}
+
+function createJLinkCommanderScript(elfPath) {
+  const commanderPath = path.resolve(elfPath).replace(/\\/g, '/').replace(/"/g, '\\"');
+  return [
+    'ExitOnError 1',
+    'r',
+    'h',
+    `loadfile "${commanderPath}"`,
+    'r',
+    'g',
+    'exit',
+    ''
+  ].join('\r\n');
 }
 
 function serverOutputState(output, debuggerName) {
@@ -166,7 +194,7 @@ function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 600
       cleanup();
       const commandFailed = /Remote communication error|Target disconnected|not supported by this target|You can't do that|Load failed/i.test(output);
       if (code === 0 && !commandFailed) {
-        resolve();
+        resolve(output);
       } else if (commandFailed) {
         reject(new Error('GDB下载失败：目标连接中断或烧录命令未被GDB Server接受。'));
       } else {
@@ -187,6 +215,43 @@ function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 600
   });
 }
 
+async function runJLinkCommander(plan, onOutput, signal) {
+  if (!plan.jlinkDevice) {
+    throw new Error('J-Link烧录配置中缺少-device芯片型号参数。');
+  }
+  await Promise.all([
+    fs.access(plan.jlinkCommanderExecutable),
+    fs.access(plan.elfPath)
+  ]);
+  const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'gd32-jlink-'));
+  const scriptPath = path.join(tempDirectory, 'flash.jlink');
+  await fs.writeFile(scriptPath, createJLinkCommanderScript(plan.elfPath), 'utf8');
+  const args = [
+    '-device', plan.jlinkDevice,
+    '-if', plan.jlinkInterface,
+    '-speed', plan.jlinkSpeed,
+    '-autoconnect', '1',
+    '-ExitOnError', '1',
+    '-CommanderScript', scriptPath
+  ];
+  let commander;
+  try {
+    onOutput(`烧录方式：J-Link Commander\n芯片型号：${plan.jlinkDevice}\n接口：${plan.jlinkInterface.toUpperCase()}\n速度：${plan.jlinkSpeed} kHz\n\n`);
+    commander = spawn(plan.jlinkCommanderExecutable, args, {
+      cwd: path.dirname(plan.jlinkCommanderExecutable),
+      windowsHide: true
+    });
+    const output = await waitForExit(commander, 'J-Link Commander', onOutput, signal);
+    if (!/O\.K\.|Flash download.*(?:finished|successful)/i.test(output)) {
+      throw new Error('J-Link Commander没有报告烧录成功。');
+    }
+    onOutput('\n烧录完成，目标程序已复位运行，J-Link Commander已退出。\n');
+  } finally {
+    await terminateProcess(commander);
+    await fs.rm(tempDirectory, { recursive: true, force: true });
+  }
+}
+
 async function terminateProcess(process, timeoutMilliseconds = 2000) {
   if (!process || process.exitCode !== null || process.signalCode !== null) {
     return;
@@ -202,15 +267,20 @@ async function terminateProcess(process, timeoutMilliseconds = 2000) {
 }
 
 async function runFlashPlan(plan, onOutput = () => {}, signal) {
+  if (signal?.aborted) {
+    throw cancellationError();
+  }
+  onOutput(`烧录配置：${plan.launchName}\n调试器：${plan.debugger}\nELF文件：${plan.elfPath}\n\n`);
+  if (plan.jlinkCommanderExecutable) {
+    await runJLinkCommander(plan, onOutput, signal);
+    return;
+  }
   await Promise.all([
     fs.access(plan.serverExecutable),
     fs.access(plan.gdbExecutable),
     fs.access(plan.elfPath)
   ]);
-  if (signal?.aborted) {
-    throw cancellationError();
-  }
-  onOutput(`烧录配置：${plan.launchName}\n调试器：${plan.debugger}\nELF文件：${plan.elfPath}\n\n正在连接目标...\n`);
+  onOutput('正在连接目标...\n');
   const server = spawn(plan.serverExecutable, plan.serverArguments, {
     cwd: path.dirname(plan.serverExecutable),
     windowsHide: true
@@ -235,6 +305,7 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
 
 module.exports = {
   createFlashPlan,
+  createJLinkCommanderScript,
   runFlashPlan,
   serverOutputState,
   splitCommandLine

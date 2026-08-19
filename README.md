@@ -2,7 +2,7 @@
 
 在 Visual Studio Code 中复用兆易创新 GD32 Embedded Builder工程的构建和烧录配置。插件读取 `.project`、`.cproject` 和 Eclipse `.launch`，不会修改厂家工程文件。
 
-当前版本：`0.3.2`
+当前版本：`0.3.3`
 
 ## 功能
 
@@ -29,7 +29,7 @@
 6. 检查自动带出的 ELF和Debugger字段，必要时重新选择 ELF。
 7. 使用编辑器顶部按钮、侧栏按钮或快捷键执行 Build和Flash。
 
-Flash执行下载后会复位并运行目标程序，再断开 GDB连接，不会停留在 VS Code调试会话。侧栏的 Headless Build折叠区还可以切换 workspace模式和自动导入状态。所有功能仍可通过 `GD32 Eclipse: ...` 命令使用。
+J-Link配置使用厂家IDE自带的 J-Link Commander执行一次性下载、复位、运行和退出，不会停留在调试会话。GD-Link/OpenOCD配置继续通过对应GDB Server完成下载。侧栏的 Headless Build折叠区还可以切换 workspace模式和自动导入状态。
 
 烧录过程中再次点击 Flash，或取消 VS Code的烧录进度通知，可以立即停止当前任务。插件生成的连接、成功、失败和停止结果使用中文输出；J-Link/OpenOCD/GDB自身的原始日志保持原文。
 
@@ -58,8 +58,8 @@ VS Code command/task
 
 VS Code Flash
   -> read the Eclipse .launch from the vendor IDE workspace
-  -> start its J-Link GDB Server or OpenOCD
-  -> run its arm-none-eabi-gdb download commands
+  -> J-Link: run JLink.exe LoadFile / Reset / Go / Exit
+  -> GD-Link: start OpenOCD and run GDB download commands
   -> reset target and disconnect
 ```
 
@@ -142,6 +142,13 @@ npm run package
 每次修改插件时都必须同步检查并更新本 README。新增或变更功能、命令、配置、兼容性、使用步骤、限制和版本号时，应在同一次提交中更新对应说明；即使改动不影响文档，也应确认现有说明仍与实现一致。
 
 ## 版本记录
+
+### 0.3.3
+
+- 根据厂家Eclipse成功日志调整J-Link烧录方式。
+- J-Link改用同一SEGGER安装中的 J-Link Commander，复用 `.launch` 的芯片、接口和速度参数。
+- 使用 `LoadFile -> Reset -> Go -> Exit` 完成一次性烧录，确保程序运行且烧录进程退出。
+- GD-Link/OpenOCD仍使用GDB下载流程。
 
 ### 0.3.2
 
