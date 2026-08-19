@@ -1,0 +1,119 @@
+{
+  "name": "gd32-eclipse-bridge",
+  "displayName": "GD32 Eclipse Bridge",
+  "description": "Build GD32 Eclipse CDT managed projects from Visual Studio Code using the vendor headless builder.",
+  "version": "0.1.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "GD32",
+    "Eclipse CDT",
+    "embedded",
+    "headless build"
+  ],
+  "activationEvents": [
+    "workspaceContains:.cproject",
+    "onCommand:gd32EclipseBridge.build",
+    "onCommand:gd32EclipseBridge.cleanBuild",
+    "onCommand:gd32EclipseBridge.selectConfiguration",
+    "onCommand:gd32EclipseBridge.selectInstallation",
+    "onCommand:gd32EclipseBridge.showProjectInfo",
+    "onTaskType:gd32-eclipse"
+  ],
+  "main": "./src/extension.js",
+  "scripts": {
+    "test": "node --test",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.2.5"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.2"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "gd32EclipseBridge.build",
+        "title": "GD32 Eclipse: Build"
+      },
+      {
+        "command": "gd32EclipseBridge.cleanBuild",
+        "title": "GD32 Eclipse: Clean and Build"
+      },
+      {
+        "command": "gd32EclipseBridge.selectConfiguration",
+        "title": "GD32 Eclipse: Select Build Configuration"
+      },
+      {
+        "command": "gd32EclipseBridge.selectInstallation",
+        "title": "GD32 Eclipse: Select Embedded Builder Installation"
+      },
+      {
+        "command": "gd32EclipseBridge.showProjectInfo",
+        "title": "GD32 Eclipse: Show Project Information"
+      }
+    ],
+    "configuration": {
+      "title": "GD32 Eclipse Bridge",
+      "properties": {
+        "gd32EclipseBridge.installationPath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Folder containing GD32EmbeddedBuilderc.exe, or the full executable path."
+        },
+        "gd32EclipseBridge.workspacePath": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Eclipse workspace used by headless builds. Empty creates a dedicated workspace for each project in VS Code extension storage."
+        },
+        "gd32EclipseBridge.configuration": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "CDT configuration name. Empty selects a Debug configuration when available."
+        },
+        "gd32EclipseBridge.autoImport": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Import the project into the selected Eclipse workspace when it is not already present."
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "gd32-eclipse",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "build",
+              "cleanBuild"
+            ],
+            "description": "Headless CDT build mode."
+          },
+          "projectDirectory": {
+            "type": "string",
+            "description": "Directory containing .project and .cproject."
+          },
+          "configuration": {
+            "type": "string",
+            "description": "CDT build configuration name."
+          }
+        }
+      }
+    ]
+  }
+}
