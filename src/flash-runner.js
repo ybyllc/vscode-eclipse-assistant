@@ -14,6 +14,8 @@ function splitCommandLine(commandLine) {
 
 function commandLines(value) {
   return String(value || '')
+    .replace(/&#(?:13|x0*d);/gi, '\r')
+    .replace(/&#(?:10|x0*a);/gi, '\n')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -39,21 +41,23 @@ function createFlashPlan(launch, elfPath) {
 
   const resetCommands = commandLines(launch.resetCommands);
   const runCommands = commandLines(launch.runCommands)
-    .filter((command) => !/^(continue|c|tbreak\b)/i.test(command));
+    .filter((command) => !/^(continue|c|tbreak\b|monitor\s+reset\b)/i.test(command));
   if (launch.loadImage && !resetCommands.some((command) => /^load(?:\s|$)/i.test(command))) {
     resetCommands.push('monitor reset halt', 'load');
   }
-  if (runCommands.length === 0) {
-    runCommands.push('monitor reset');
-  }
+  const resumeCommands = /openocd/i.test(`${launch.serverKind || ''} ${launch.debugger || ''}`)
+    ? ['monitor reset run']
+    : ['monitor reset', 'monitor go'];
 
   const gdbCommands = [
+    'set confirm off',
     `file ${quoteGdbPath(path.resolve(elfPath))}`,
     ...commandLines(launch.initCommands),
     `${launch.remoteCommand || 'target remote'} ${launch.host || 'localhost'}:${launch.port || 3333}`,
     ...resetCommands,
     ...runCommands,
-    'detach',
+    ...resumeCommands,
+    'disconnect',
     'quit'
   ];
   return {
@@ -107,18 +111,48 @@ function waitForServerReady(serverProcess, onOutput, timeoutMilliseconds = 10000
   });
 }
 
-function waitForExit(process, label, onOutput) {
+function waitForExit(process, label, onOutput, timeoutMilliseconds = 60000) {
   process.stdout?.on('data', (data) => onOutput(data.toString()));
   process.stderr?.on('data', (data) => onOutput(data.toString()));
   return new Promise((resolve, reject) => {
-    process.once('error', reject);
-    process.once('exit', (code) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      process.kill();
+      reject(new Error(`${label} did not exit within ${Math.round(timeoutMilliseconds / 1000)} seconds.`));
+    }, timeoutMilliseconds);
+    function cleanup() {
+      clearTimeout(timer);
+      process.off('error', failed);
+      process.off('exit', exited);
+    }
+    function failed(error) {
+      cleanup();
+      reject(error);
+    }
+    function exited(code) {
+      cleanup();
       if (code === 0) {
         resolve();
       } else {
         reject(new Error(`${label} exited with code ${code}.`));
       }
+    }
+    process.once('error', failed);
+    process.once('exit', exited);
+  });
+}
+
+async function terminateProcess(process, timeoutMilliseconds = 2000) {
+  if (!process || process.exitCode !== null || process.signalCode !== null) {
+    return;
+  }
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMilliseconds);
+    process.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
     });
+    process.kill();
   });
 }
 
@@ -133,19 +167,19 @@ async function runFlashPlan(plan, onOutput = () => {}) {
     cwd: path.dirname(plan.serverExecutable),
     windowsHide: true
   });
+  let gdb;
   try {
     await waitForServerReady(server, onOutput);
     server.stdout?.on('data', (data) => onOutput(data.toString()));
     server.stderr?.on('data', (data) => onOutput(data.toString()));
-    const gdb = spawn(plan.gdbExecutable, plan.gdbArguments, {
+    gdb = spawn(plan.gdbExecutable, plan.gdbArguments, {
       cwd: path.dirname(plan.elfPath),
       windowsHide: true
     });
     await waitForExit(gdb, 'GDB', onOutput);
   } finally {
-    if (server.exitCode === null) {
-      server.kill();
-    }
+    await terminateProcess(gdb);
+    await terminateProcess(server);
   }
 }
 

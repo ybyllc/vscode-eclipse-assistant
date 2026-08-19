@@ -2,7 +2,7 @@
   "name": "gd32-eclipse-bridge",
   "displayName": "GD32 Eclipse Bridge",
   "description": "Build GD32 Eclipse CDT managed projects from Visual Studio Code using the vendor headless builder.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "local",
   "license": "MIT",
   "engines": {

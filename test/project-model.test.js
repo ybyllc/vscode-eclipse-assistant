@@ -121,5 +121,30 @@ test('creates a flash plan from vendor GDB server settings', () => {
   assert.deepEqual(plan.serverArguments, ['-f', 'E:\\project files\\openocd.cfg']);
   assert.equal(plan.gdbArguments.includes('load'), true);
   assert.equal(plan.gdbArguments.includes('target remote localhost:3333'), true);
+  assert.equal(plan.gdbArguments.includes('monitor reset run'), true);
+  assert.equal(plan.gdbArguments.includes('disconnect'), true);
+  assert.equal(plan.gdbArguments.includes('detach'), false);
   assert.deepEqual(splitCommandLine('-port 2331 -device "GD32 L235"'), ['-port', '2331', '-device', 'GD32 L235']);
+});
+
+test('resets and runs a J-Link target after flashing', () => {
+  const plan = createFlashPlan({
+    name: 'demo debug',
+    serverKind: 'JGDBServer',
+    debugger: 'J-Link / J-Link GDB Server',
+    serverExecutable: 'D:\\Tools\\JLinkGDBServerCL.exe',
+    serverParameters: '-port 2331',
+    gdbExecutable: 'D:\\Tools\\arm-none-eabi-gdb.exe',
+    host: 'localhost',
+    port: 2331,
+    remoteCommand: 'target remote',
+    resetCommands: 'monitor reset&#13;&#10;load&#13;&#10;',
+    runCommands: 'monitor reset&#13;&#10;continue&#13;&#10;',
+    loadImage: true
+  }, 'E:\\project\\demo.elf');
+  assert.equal(plan.gdbArguments.includes('monitor reset'), true);
+  assert.equal(plan.gdbArguments.includes('monitor go'), true);
+  assert.equal(plan.gdbArguments.includes('continue'), false);
+  assert.equal(plan.gdbArguments.includes('disconnect'), true);
+  assert.equal(plan.gdbArguments.some((argument) => argument.includes('&#13;')), false);
 });

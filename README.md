@@ -2,7 +2,7 @@
 
 在 Visual Studio Code 中复用兆易创新 GD32 Embedded Builder工程的构建和烧录配置。插件读取 `.project`、`.cproject` 和 Eclipse `.launch`，不会修改厂家工程文件。
 
-当前版本：`0.3.0`
+当前版本：`0.3.1`
 
 ## 功能
 
@@ -29,7 +29,7 @@
 6. 检查自动带出的 ELF和Debugger字段，必要时重新选择 ELF。
 7. 使用编辑器顶部按钮、侧栏按钮或快捷键执行 Build和Flash。
 
-Flash只执行下载、复位和断开，不会停留在 VS Code调试会话。侧栏的 Headless Build折叠区还可以切换 workspace模式和自动导入状态。所有功能仍可通过 `GD32 Eclipse: ...` 命令使用。
+Flash执行下载后会复位并运行目标程序，再断开 GDB连接，不会停留在 VS Code调试会话。侧栏的 Headless Build折叠区还可以切换 workspace模式和自动导入状态。所有功能仍可通过 `GD32 Eclipse: ...` 命令使用。
 
 默认在 VS Code扩展存储目录中为每个工程创建独立的 Headless Workspace，避免与正在运行的厂家 Eclipse GUI争用 workspace锁。可以通过 `gd32EclipseBridge.workspacePath` 显式指定其他 Eclipse workspace。
 
@@ -140,6 +140,13 @@ npm run package
 每次修改插件时都必须同步检查并更新本 README。新增或变更功能、命令、配置、兼容性、使用步骤、限制和版本号时，应在同一次提交中更新对应说明；即使改动不影响文档，也应确认现有说明仍与实现一致。
 
 ## 版本记录
+
+### 0.3.1
+
+- 修复烧录成功或失败后 GDB未退出，导致后续一直提示已有Flash任务的问题。
+- 正确拆分厂家 `.launch` 中以 XML实体保存的多行GDB命令。
+- 下载完成后自动复位并运行目标程序。
+- 为 GDB增加60秒退出超时，并确保 GDB和GDB Server最终被清理。
 
 ### 0.3.0
 
