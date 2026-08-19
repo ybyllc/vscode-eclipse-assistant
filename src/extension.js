@@ -12,6 +12,89 @@ const CONFIG_SECTION = 'gd32EclipseBridge';
 const TASK_TYPE = 'gd32-eclipse';
 let extensionContext;
 
+class SidebarProvider {
+  constructor() {
+    this.changeEmitter = new vscode.EventEmitter();
+    this.onDidChangeTreeData = this.changeEmitter.event;
+  }
+
+  refresh() {
+    this.changeEmitter.fire();
+  }
+
+  getTreeItem(item) {
+    return item;
+  }
+
+  async getChildren() {
+    const roots = await discoverProjectRoots();
+    if (roots.length === 0) {
+      const item = new vscode.TreeItem('No Eclipse CDT project found');
+      item.description = 'Open a folder containing .project and .cproject';
+      item.iconPath = new vscode.ThemeIcon('warning');
+      return [item];
+    }
+
+    const projectDirectory = roots[0];
+    const project = await readProjectInfo(projectDirectory);
+    const config = configurationFor(projectDirectory);
+    const installationPath = config.get('installationPath', '');
+    const configuredWorkspace = config.get('workspacePath', '');
+    const requestedConfiguration = config.get('configuration', '');
+    const configuration = project.configurations.includes(requestedConfiguration)
+      ? requestedConfiguration
+      : chooseDefaultConfiguration(project.configurations);
+    const workspacePath = configuredWorkspace
+      ? path.resolve(configuredWorkspace)
+      : getDefaultWorkspacePath(extensionContext.globalStorageUri.fsPath, projectDirectory);
+
+    return [
+      createSidebarItem('Project', project.projectName, 'project', undefined, projectDirectory),
+      createSidebarItem(
+        'Embedded Builder',
+        installationPath ? path.basename(path.resolve(installationPath)) : 'Not configured',
+        installationPath ? 'tools' : 'warning',
+        'gd32EclipseBridge.selectInstallation',
+        installationPath || 'Click to select the GD32 Embedded Builder installation'
+      ),
+      createSidebarItem(
+        'Build Configuration',
+        configuration || 'None found',
+        'settings-gear',
+        'gd32EclipseBridge.selectConfiguration',
+        'Click to select a configuration from .cproject'
+      ),
+      createSidebarItem(
+        'Headless Workspace',
+        configuredWorkspace ? path.basename(workspacePath) : 'Dedicated per project',
+        'folder-library',
+        'gd32EclipseBridge.selectWorkspace',
+        workspacePath
+      ),
+      createSidebarItem(
+        'Auto Import',
+        config.get('autoImport', true) ? 'Enabled' : 'Disabled',
+        config.get('autoImport', true) ? 'check' : 'circle-slash',
+        'gd32EclipseBridge.toggleAutoImport',
+        'Click to toggle automatic Eclipse project import'
+      ),
+      createSidebarItem('Build', configuration || '', 'tools', 'gd32EclipseBridge.build'),
+      createSidebarItem('Clean and Build', configuration || '', 'debug-restart', 'gd32EclipseBridge.cleanBuild')
+    ];
+  }
+}
+
+function createSidebarItem(label, description, icon, command, tooltip) {
+  const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+  item.description = description;
+  item.tooltip = tooltip || label;
+  item.iconPath = new vscode.ThemeIcon(icon);
+  if (command) {
+    item.command = { command, title: label };
+  }
+  return item;
+}
+
 function configurationFor(projectDirectory) {
   return vscode.workspace.getConfiguration(CONFIG_SECTION, vscode.Uri.file(projectDirectory));
 }
@@ -217,6 +300,74 @@ async function selectConfiguration() {
   }
 }
 
+async function selectWorkspace() {
+  try {
+    const root = await selectProjectRoot();
+    if (!root) {
+      return;
+    }
+    const choice = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Use dedicated workspace',
+          description: 'Recommended; avoids the Eclipse workspace lock',
+          mode: 'dedicated'
+        },
+        {
+          label: 'Choose workspace folder...',
+          description: 'Use an existing or new Eclipse workspace directory',
+          mode: 'custom'
+        }
+      ],
+      { placeHolder: 'Select the Headless Build workspace mode' }
+    );
+    if (!choice) {
+      return;
+    }
+
+    let workspacePath = '';
+    if (choice.mode === 'custom') {
+      const selected = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Select Headless Workspace'
+      });
+      if (!selected?.[0]) {
+        return;
+      }
+      workspacePath = selected[0].fsPath;
+    }
+    await configurationFor(root).update(
+      'workspacePath',
+      workspacePath,
+      vscode.ConfigurationTarget.WorkspaceFolder
+    );
+    await vscode.window.showInformationMessage(
+      workspacePath
+        ? `GD32 Headless Workspace: ${workspacePath}`
+        : 'GD32 Headless Workspace: dedicated workspace per project'
+    );
+  } catch (error) {
+    await vscode.window.showErrorMessage(error.message);
+  }
+}
+
+async function toggleAutoImport() {
+  try {
+    const root = await selectProjectRoot();
+    if (!root) {
+      return;
+    }
+    const config = configurationFor(root);
+    const enabled = !config.get('autoImport', true);
+    await config.update('autoImport', enabled, vscode.ConfigurationTarget.WorkspaceFolder);
+    await vscode.window.showInformationMessage(`GD32 automatic project import: ${enabled ? 'enabled' : 'disabled'}`);
+  } catch (error) {
+    await vscode.window.showErrorMessage(error.message);
+  }
+}
+
 async function showProjectInfo() {
   try {
     const context = await resolveBuildContext();
@@ -235,6 +386,7 @@ async function showProjectInfo() {
 
 function activate(context) {
   extensionContext = context;
+  const sidebarProvider = new SidebarProvider();
   const taskProvider = vscode.tasks.registerTaskProvider(TASK_TYPE, {
     async provideTasks() {
       try {
@@ -256,10 +408,21 @@ function activate(context) {
 
   context.subscriptions.push(
     taskProvider,
+    sidebarProvider.changeEmitter,
+    vscode.window.registerTreeDataProvider('gd32EclipseBridge.sidebar', sidebarProvider),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration(CONFIG_SECTION)) {
+        sidebarProvider.refresh();
+      }
+    }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => sidebarProvider.refresh()),
     vscode.commands.registerCommand('gd32EclipseBridge.build', () => executeBuild('build')),
     vscode.commands.registerCommand('gd32EclipseBridge.cleanBuild', () => executeBuild('cleanBuild')),
     vscode.commands.registerCommand('gd32EclipseBridge.selectConfiguration', selectConfiguration),
     vscode.commands.registerCommand('gd32EclipseBridge.selectInstallation', selectInstallation),
+    vscode.commands.registerCommand('gd32EclipseBridge.selectWorkspace', selectWorkspace),
+    vscode.commands.registerCommand('gd32EclipseBridge.toggleAutoImport', toggleAutoImport),
+    vscode.commands.registerCommand('gd32EclipseBridge.refreshSidebar', () => sidebarProvider.refresh()),
     vscode.commands.registerCommand('gd32EclipseBridge.showProjectInfo', showProjectInfo)
   );
 }

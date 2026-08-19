@@ -2,7 +2,7 @@
 
 在 Visual Studio Code 中调用兆易创新 GD32 Embedded Builder 的 CDT Headless Build。插件读取 `.project` 和 `.cproject` 中的工程名、Debug/Release配置，但不会自行生成 Makefile；Makefile仍由厂家 Eclipse插件生成。
 
-当前版本：`0.1.1`
+当前版本：`0.2.0`
 
 ## 功能
 
@@ -12,15 +12,18 @@
 - 工程不在 Eclipse workspace时自动导入。
 - 提供普通 Build和 Clean and Build任务。
 - 支持从命令面板切换 `.cproject` 中已有的构建配置。
+- 提供 GD32 Eclipse Activity Bar侧栏，集中显示和修改构建配置。
 - 与厂家 Eclipse GUI共用 `.project`、`.cproject` 和构建目录。
 
 ## 使用
 
 1. 在 VS Code中打开包含 `.project` 和 `.cproject` 的工程。
-2. 执行 `GD32 Eclipse: Select Embedded Builder Installation`。
+2. 点击 Activity Bar中的 GD32芯片图标打开 `GD32 Eclipse` 侧栏。
 3. 选择包含 `GD32EmbeddedBuilderc.exe` 的目录，例如 `D:\GD32embeddedBuilder\GD32EB_v1.5.10_Rel\GD32EB`。
-4. 执行 `GD32 Eclipse: Select Build Configuration`。
-5. 使用 `Ctrl+Shift+B`，或者执行 `GD32 Eclipse: Build`。
+4. 点击 `Build Configuration`，选择 `.cproject` 中已有的构建配置。
+5. 点击侧栏中的 `Build` 或 `Clean and Build`。
+
+侧栏还可以切换 Headless Workspace模式和自动导入状态。所有功能仍可通过 `GD32 Eclipse: ...` 命令以及 `Ctrl+Shift+B` 使用。
 
 默认在 VS Code扩展存储目录中为每个工程创建独立的 Headless Workspace，避免与正在运行的厂家 Eclipse GUI争用 workspace锁。可以通过 `gd32EclipseBridge.workspacePath` 显式指定其他 Eclipse workspace。
 
@@ -73,6 +76,7 @@ VS Code command/task
 src/extension.js          VS Code命令、任务和配置入口
 src/project-model.js      .project/.cproject解析与配置选择
 src/headless-command.js   Headless Build命令参数生成
+media/gd32.svg            Activity Bar侧栏图标
 test/project-model.test.js
                           Eclipse工程解析单元测试
 package.json              扩展清单、命令和配置定义
@@ -114,6 +118,12 @@ npm run package
 每次修改插件时都必须同步检查并更新本 README。新增或变更功能、命令、配置、兼容性、使用步骤、限制和版本号时，应在同一次提交中更新对应说明；即使改动不影响文档，也应确认现有说明仍与实现一致。
 
 ## 版本记录
+
+### 0.2.0
+
+- 新增 GD32 Eclipse Activity Bar侧栏。
+- 可在侧栏中查看工程和配置，并点击修改 Embedded Builder、构建配置、Headless Workspace及自动导入状态。
+- 可直接从侧栏执行 Build与 Clean and Build。
 
 ### 0.1.1
 

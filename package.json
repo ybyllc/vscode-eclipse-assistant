@@ -2,7 +2,7 @@
   "name": "gd32-eclipse-bridge",
   "displayName": "GD32 Eclipse Bridge",
   "description": "Build GD32 Eclipse CDT managed projects from Visual Studio Code using the vendor headless builder.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "local",
   "license": "MIT",
   "engines": {
@@ -23,7 +23,10 @@
     "onCommand:gd32EclipseBridge.cleanBuild",
     "onCommand:gd32EclipseBridge.selectConfiguration",
     "onCommand:gd32EclipseBridge.selectInstallation",
+    "onCommand:gd32EclipseBridge.selectWorkspace",
+    "onCommand:gd32EclipseBridge.toggleAutoImport",
     "onCommand:gd32EclipseBridge.showProjectInfo",
+    "onView:gd32EclipseBridge.sidebar",
     "onTaskType:gd32-eclipse"
   ],
   "main": "./src/extension.js",
@@ -58,8 +61,47 @@
       {
         "command": "gd32EclipseBridge.showProjectInfo",
         "title": "GD32 Eclipse: Show Project Information"
+      },
+      {
+        "command": "gd32EclipseBridge.selectWorkspace",
+        "title": "GD32 Eclipse: Select Headless Workspace"
+      },
+      {
+        "command": "gd32EclipseBridge.toggleAutoImport",
+        "title": "GD32 Eclipse: Toggle Automatic Project Import"
+      },
+      {
+        "command": "gd32EclipseBridge.refreshSidebar",
+        "title": "Refresh",
+        "icon": "$(refresh)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gd32EclipseBridge",
+          "title": "GD32 Eclipse",
+          "icon": "media/gd32.svg"
+        }
+      ]
+    },
+    "views": {
+      "gd32EclipseBridge": [
+        {
+          "id": "gd32EclipseBridge.sidebar",
+          "name": "Project"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "gd32EclipseBridge.refreshSidebar",
+          "when": "view == gd32EclipseBridge.sidebar",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "GD32 Eclipse Bridge",
       "properties": {
