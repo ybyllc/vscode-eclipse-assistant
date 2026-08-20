@@ -1,19 +1,11 @@
 const crypto = require('node:crypto');
 const path = require('node:path');
+const { resolveIdeInstallation } = require('./ide-discovery');
 
 const APPLICATION_ID = 'org.eclipse.cdt.managedbuilder.core.headlessbuild';
 
 function getExecutable(installationPath) {
-  if (!installationPath) {
-    return undefined;
-  }
-  const resolved = path.resolve(installationPath);
-  if (path.extname(resolved).toLowerCase() !== '.exe') {
-    return path.join(resolved, 'GD32EmbeddedBuilderc.exe');
-  }
-  return path.basename(resolved).toLowerCase() === 'gd32embeddedbuilder.exe'
-    ? path.join(path.dirname(resolved), 'GD32EmbeddedBuilderc.exe')
-    : resolved;
+  return installationPath ? resolveIdeInstallation(installationPath)?.headlessExecutable : undefined;
 }
 
 function getDefaultWorkspacePath(storagePath, projectDirectory) {
@@ -34,6 +26,7 @@ function createHeadlessArgs(options) {
     ? `${options.projectName}/${options.configuration}`
     : options.projectName;
   const args = [
+    ...(options.headlessArguments || []),
     '--launcher.suppressErrors',
     '-nosplash',
     '-application',
@@ -54,5 +47,6 @@ module.exports = {
   APPLICATION_ID,
   createHeadlessArgs,
   getDefaultWorkspacePath,
-  getExecutable
+  getExecutable,
+  resolveIdeInstallation
 };

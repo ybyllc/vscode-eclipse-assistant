@@ -1,8 +1,8 @@
 {
-  "name": "gd32-eclipse-bridge",
-  "displayName": "GD32 Eclipse Bridge",
-  "description": "Build GD32 Eclipse CDT managed projects from Visual Studio Code using the vendor headless builder.",
-  "version": "0.3.3",
+  "name": "eclipse-cdt-bridge",
+  "displayName": "Eclipse CDT Bridge",
+  "description": "%description%",
+  "version": "0.4.1",
   "publisher": "local",
   "license": "MIT",
   "engines": {
@@ -12,23 +12,24 @@
     "Other"
   ],
   "keywords": [
-    "GD32",
-    "Eclipse CDT",
+    "Eclipse",
+    "CDT",
     "embedded",
-    "headless build"
+    "headless build",
+    "GD32"
   ],
   "activationEvents": [
     "workspaceContains:.cproject",
-    "onCommand:gd32EclipseBridge.build",
-    "onCommand:gd32EclipseBridge.flash",
-    "onCommand:gd32EclipseBridge.cleanBuild",
-    "onCommand:gd32EclipseBridge.selectConfiguration",
-    "onCommand:gd32EclipseBridge.selectInstallation",
-    "onCommand:gd32EclipseBridge.selectWorkspace",
-    "onCommand:gd32EclipseBridge.toggleAutoImport",
-    "onCommand:gd32EclipseBridge.showProjectInfo",
-    "onView:gd32EclipseBridge.sidebar",
-    "onTaskType:gd32-eclipse"
+    "onCommand:eclipseBridge.build",
+    "onCommand:eclipseBridge.flash",
+    "onCommand:eclipseBridge.cleanBuild",
+    "onCommand:eclipseBridge.selectConfiguration",
+    "onCommand:eclipseBridge.selectInstallation",
+    "onCommand:eclipseBridge.selectWorkspace",
+    "onCommand:eclipseBridge.toggleAutoImport",
+    "onCommand:eclipseBridge.showProjectInfo",
+    "onView:eclipseBridge.sidebar",
+    "onTaskType:eclipse-cdt"
   ],
   "main": "./src/extension.js",
   "scripts": {
@@ -44,58 +45,102 @@
   "contributes": {
     "commands": [
       {
-        "command": "gd32EclipseBridge.build",
-        "title": "GD32 Eclipse: Build",
+        "command": "eclipseBridge.build",
+        "title": "%command.build%",
         "icon": "$(tools)"
       },
       {
-        "command": "gd32EclipseBridge.flash",
-        "title": "GD32 Eclipse: Flash",
+        "command": "eclipseBridge.flash",
+        "title": "%command.flash%",
         "icon": "$(zap)"
       },
       {
-        "command": "gd32EclipseBridge.cleanBuild",
-        "title": "GD32 Eclipse: Clean and Build"
+        "command": "eclipseBridge.cleanBuild",
+        "title": "%command.cleanBuild%"
       },
       {
-        "command": "gd32EclipseBridge.selectConfiguration",
-        "title": "GD32 Eclipse: Select Build Configuration"
+        "command": "eclipseBridge.selectConfiguration",
+        "title": "%command.selectConfiguration%"
       },
       {
-        "command": "gd32EclipseBridge.selectInstallation",
-        "title": "GD32 Eclipse: Select Embedded Builder Installation"
+        "command": "eclipseBridge.selectInstallation",
+        "title": "%command.selectInstallation%"
       },
       {
-        "command": "gd32EclipseBridge.showProjectInfo",
-        "title": "GD32 Eclipse: Show Project Information"
+        "command": "eclipseBridge.showProjectInfo",
+        "title": "%command.showProjectInfo%"
       },
       {
-        "command": "gd32EclipseBridge.selectWorkspace",
-        "title": "GD32 Eclipse: Select Headless Workspace"
+        "command": "eclipseBridge.selectWorkspace",
+        "title": "%command.selectWorkspace%"
       },
       {
-        "command": "gd32EclipseBridge.toggleAutoImport",
-        "title": "GD32 Eclipse: Toggle Automatic Project Import"
+        "command": "eclipseBridge.toggleAutoImport",
+        "title": "%command.toggleAutoImport%"
       },
       {
-        "command": "gd32EclipseBridge.refreshSidebar",
-        "title": "Refresh",
+        "command": "eclipseBridge.refreshSidebar",
+        "title": "%command.refreshSidebar%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "eclipseBridge.selectIconTheme",
+        "title": "%command.selectIconTheme%"
+      },
+      {
+        "command": "eclipseBridge.build.tools",
+        "title": "%command.build%",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "eclipseBridge.flash.tools",
+        "title": "%command.flash%",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "eclipseBridge.build.hardware",
+        "title": "%command.build%",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "command": "eclipseBridge.flash.hardware",
+        "title": "%command.flash%",
+        "icon": "$(run)"
+      },
+      {
+        "command": "eclipseBridge.build.build",
+        "title": "%command.build%",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "eclipseBridge.flash.build",
+        "title": "%command.flash%",
+        "icon": "$(play)"
+      },
+      {
+        "command": "eclipseBridge.build.package",
+        "title": "%command.build%",
+        "icon": "$(package)"
+      },
+      {
+        "command": "eclipseBridge.flash.package",
+        "title": "%command.flash%",
+        "icon": "$(cloud-upload)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "gd32EclipseBridge",
-          "title": "GD32 Eclipse",
-          "icon": "media/gd32.svg"
+          "id": "eclipseBridge",
+          "title": "Eclipse CDT",
+          "icon": "media/eclipse-cdt.svg"
         }
       ]
     },
     "views": {
-      "gd32EclipseBridge": [
+      "eclipseBridge": [
         {
-          "id": "gd32EclipseBridge.sidebar",
+          "id": "eclipseBridge.sidebar",
           "name": "Project",
           "type": "webview"
         }
@@ -104,80 +149,122 @@
     "menus": {
       "view/title": [
         {
-          "command": "gd32EclipseBridge.refreshSidebar",
-          "when": "view == gd32EclipseBridge.sidebar",
+          "command": "eclipseBridge.refreshSidebar",
+          "when": "view == eclipseBridge.sidebar",
           "group": "navigation"
         }
       ],
       "editor/title": [
         {
-          "command": "gd32EclipseBridge.build",
-          "when": "gd32EclipseBridge.projectOpen",
+          "command": "eclipseBridge.build.tools",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == tools",
           "group": "navigation@-100"
         },
         {
-          "command": "gd32EclipseBridge.flash",
-          "when": "gd32EclipseBridge.projectOpen",
+          "command": "eclipseBridge.flash.tools",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == tools",
+          "group": "navigation@-99"
+        },
+        {
+          "command": "eclipseBridge.build.hardware",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == hardware",
+          "group": "navigation@-100"
+        },
+        {
+          "command": "eclipseBridge.flash.hardware",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == hardware",
+          "group": "navigation@-99"
+        },
+        {
+          "command": "eclipseBridge.build.build",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == build",
+          "group": "navigation@-100"
+        },
+        {
+          "command": "eclipseBridge.flash.build",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == build",
+          "group": "navigation@-99"
+        },
+        {
+          "command": "eclipseBridge.build.package",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == package",
+          "group": "navigation@-100"
+        },
+        {
+          "command": "eclipseBridge.flash.package",
+          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == package",
           "group": "navigation@-99"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "gd32EclipseBridge.build",
+        "command": "eclipseBridge.build",
         "key": "ctrl+b",
-        "when": "gd32EclipseBridge.projectOpen && editorTextFocus"
+        "when": "eclipseBridge.projectOpen && editorTextFocus"
       },
       {
-        "command": "gd32EclipseBridge.flash",
+        "command": "eclipseBridge.flash",
         "key": "f11",
-        "when": "gd32EclipseBridge.projectOpen && editorTextFocus"
+        "when": "eclipseBridge.projectOpen && editorTextFocus"
       }
     ],
     "configuration": {
-      "title": "GD32 Eclipse Bridge",
+      "title": "Eclipse CDT Bridge",
       "properties": {
-        "gd32EclipseBridge.installationPath": {
+        "eclipseBridge.installationPath": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "GD32EmbeddedBuilder.exe, GD32EmbeddedBuilderc.exe, or the folder containing them."
+          "description": "%config.installationPath%"
         },
-        "gd32EclipseBridge.workspacePath": {
+        "eclipseBridge.workspacePath": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Eclipse workspace used by headless builds. Empty creates a dedicated workspace for each project in VS Code extension storage."
+          "description": "%config.workspacePath%"
         },
-        "gd32EclipseBridge.configuration": {
+        "eclipseBridge.configuration": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "CDT configuration name. Empty selects a Debug configuration when available."
+          "description": "%config.configuration%"
         },
-        "gd32EclipseBridge.launchConfiguration": {
+        "eclipseBridge.launchConfiguration": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Eclipse GD32 launch configuration used by Flash."
+          "description": "%config.launchConfiguration%"
         },
-        "gd32EclipseBridge.elfPath": {
+        "eclipseBridge.elfPath": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "ELF file used by Flash. Empty uses the program path from the selected Eclipse launch configuration."
+          "description": "%config.elfPath%"
         },
-        "gd32EclipseBridge.autoImport": {
+        "eclipseBridge.autoImport": {
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Import the project into the selected Eclipse workspace when it is not already present."
+          "description": "%config.autoImport%"
+        },
+        "eclipseBridge.toolbarIcons": {
+          "type": "string",
+          "enum": [
+            "tools",
+            "hardware",
+            "build",
+            "package"
+          ],
+          "default": "tools",
+          "scope": "window",
+          "description": "%config.toolbarIcons%"
         }
       }
     },
     "taskDefinitions": [
       {
-        "type": "gd32-eclipse",
+        "type": "eclipse-cdt",
         "required": [
           "mode"
         ],
@@ -188,15 +275,15 @@
               "build",
               "cleanBuild"
             ],
-            "description": "Headless CDT build mode."
+            "description": "%task.mode%"
           },
           "projectDirectory": {
             "type": "string",
-            "description": "Directory containing .project and .cproject."
+            "description": "%task.projectDirectory%"
           },
           "configuration": {
             "type": "string",
-            "description": "CDT build configuration name."
+            "description": "%task.configuration%"
           }
         }
       }

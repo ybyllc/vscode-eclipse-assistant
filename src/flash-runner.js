@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { t } = require('./i18n');
 
 function splitCommandLine(commandLine) {
   const values = [];
@@ -33,25 +34,30 @@ function argumentValue(argumentsList, name) {
 
 function createFlashPlan(launch, elfPath) {
   if (!launch) {
-    throw new Error('没有选择Eclipse烧录配置。');
+    throw new Error(t('error.noLaunch'));
   }
   if (!launch.serverExecutable) {
-    throw new Error(`烧录配置“${launch.name}”中没有GDB Server路径。`);
+    throw new Error(t('error.noGdbServer', launch.name));
   }
   if (!launch.gdbExecutable) {
-    throw new Error(`烧录配置“${launch.name}”中没有GDB路径。`);
+    throw new Error(t('error.noGdb', launch.name));
   }
   if (!elfPath) {
-    throw new Error(`烧录配置“${launch.name}”中没有ELF文件。`);
+    throw new Error(t('error.noFlashFile', launch.name));
   }
 
+  const debuggerKind = `${launch.serverKind || ''} ${launch.debugger || ''}`;
+  const isJLink = /j-link|jgdbserver/i.test(debuggerKind);
+  const isOpenOcd = /openocd/i.test(debuggerKind);
   const resetCommands = commandLines(launch.resetCommands);
   const runCommands = commandLines(launch.runCommands)
     .filter((command) => !/^(continue|c|tbreak\b|monitor\s+reset\b)/i.test(command));
   if (launch.loadImage && !resetCommands.some((command) => /^load(?:\s|$)/i.test(command))) {
-    resetCommands.push('monitor reset halt', 'load');
+    resetCommands.push(...(isJLink
+      ? ['monitor reset', 'monitor halt', 'load']
+      : ['monitor reset halt', 'load']));
   }
-  const resumeCommands = /openocd/i.test(`${launch.serverKind || ''} ${launch.debugger || ''}`)
+  const resumeCommands = isOpenOcd
     ? ['monitor reset run']
     : ['monitor reset', 'monitor go'];
 
@@ -67,7 +73,8 @@ function createFlashPlan(launch, elfPath) {
     'quit'
   ];
   const serverArguments = splitCommandLine(launch.serverParameters);
-  const isJLink = /j-link|jgdbserver/i.test(`${launch.serverKind || ''} ${launch.debugger || ''}`);
+  const rawDevicesXmlPath = argumentValue(serverArguments, '-JLinkDevicesXMLPath') || '';
+  const jlinkDevicesXmlPath = rawDevicesXmlPath ? path.normalize(rawDevicesXmlPath) : '';
   return {
     serverExecutable: path.resolve(launch.serverExecutable),
     serverArguments,
@@ -78,12 +85,13 @@ function createFlashPlan(launch, elfPath) {
     elfPath: path.resolve(elfPath),
     launchName: launch.name,
     debugger: launch.debugger,
-    jlinkCommanderExecutable: isJLink
+    jlinkCommanderExecutable: isJLink && !jlinkDevicesXmlPath
       ? path.join(path.dirname(path.resolve(launch.serverExecutable)), 'JLink.exe')
       : '',
     jlinkDevice: argumentValue(serverArguments, '-device') || '',
     jlinkInterface: argumentValue(serverArguments, '-if') || launch.interface || 'swd',
-    jlinkSpeed: argumentValue(serverArguments, '-speed') || launch.speed || 'auto'
+    jlinkSpeed: argumentValue(serverArguments, '-speed') || launch.speed || 'auto',
+    jlinkDevicesXmlPath
   };
 }
 
@@ -112,7 +120,7 @@ function serverOutputState(output, debuggerName) {
 }
 
 function cancellationError() {
-  const error = new Error('烧录已由用户停止。');
+  const error = new Error(t('log.stopped'));
   error.name = 'AbortError';
   return error;
 }
@@ -122,7 +130,7 @@ function waitForServerReady(serverProcess, debuggerName, onOutput, signal, timeo
     let output = '';
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error('等待GDB Server连接目标超时，已停止烧录。'));
+      reject(new Error(t('error.jlinkTimeout')));
     }, timeoutMilliseconds);
     function cleanup() {
       clearTimeout(timer);
@@ -139,7 +147,7 @@ function waitForServerReady(serverProcess, debuggerName, onOutput, signal, timeo
       const state = serverOutputState(output, debuggerName);
       if (state === 'failed') {
         cleanup();
-        reject(new Error('J-Link无法连接目标，InitTarget失败。请检查芯片型号、接线、复位方式或改用已验证的GD-Link/OpenOCD配置。'));
+        reject(new Error(t('error.jlinkInitFailed')));
       } else if (state === 'ready') {
         cleanup();
         resolve();
@@ -147,7 +155,7 @@ function waitForServerReady(serverProcess, debuggerName, onOutput, signal, timeo
     }
     function exited(code) {
       cleanup();
-      reject(new Error(`GDB Server在连接目标前退出，退出代码：${code}。`));
+      reject(new Error(t('error.gdbServerExited', code)));
     }
     function failed(error) {
       cleanup();
@@ -178,7 +186,7 @@ function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 600
     const timer = setTimeout(() => {
       cleanup();
       process.kill();
-      reject(new Error(`${label}在${Math.round(timeoutMilliseconds / 1000)}秒内没有结束，已强制停止。`));
+      reject(new Error(t('error.processTimeout', label, Math.round(timeoutMilliseconds / 1000))));
     }, timeoutMilliseconds);
     function cleanup() {
       clearTimeout(timer);
@@ -196,9 +204,9 @@ function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 600
       if (code === 0 && !commandFailed) {
         resolve(output);
       } else if (commandFailed) {
-        reject(new Error('GDB下载失败：目标连接中断或烧录命令未被GDB Server接受。'));
+        reject(new Error(t('error.gdbDownloadFailed')));
       } else {
-        reject(new Error(`${label}异常退出，退出代码：${code}。`));
+        reject(new Error(t('error.processExited', label, code)));
       }
     }
     function cancelled() {
@@ -217,13 +225,13 @@ function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 600
 
 async function runJLinkCommander(plan, onOutput, signal) {
   if (!plan.jlinkDevice) {
-    throw new Error('J-Link烧录配置中缺少-device芯片型号参数。');
+    throw new Error(t('error.jlinkNoDevice'));
   }
   await Promise.all([
     fs.access(plan.jlinkCommanderExecutable),
     fs.access(plan.elfPath)
   ]);
-  const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'gd32-jlink-'));
+  const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'eclipse-jlink-'));
   const scriptPath = path.join(tempDirectory, 'flash.jlink');
   await fs.writeFile(scriptPath, createJLinkCommanderScript(plan.elfPath), 'utf8');
   const args = [
@@ -231,21 +239,21 @@ async function runJLinkCommander(plan, onOutput, signal) {
     '-if', plan.jlinkInterface,
     '-speed', plan.jlinkSpeed,
     '-autoconnect', '1',
-    '-ExitOnError', '1',
-    '-CommanderScript', scriptPath
+    '-ExitOnError', '1'
   ];
+  args.push('-CommanderScript', scriptPath);
   let commander;
   try {
-    onOutput(`烧录方式：J-Link Commander\n芯片型号：${plan.jlinkDevice}\n接口：${plan.jlinkInterface.toUpperCase()}\n速度：${plan.jlinkSpeed} kHz\n\n`);
+    onOutput(t('log.jlinkHeader', plan.jlinkDevice, plan.jlinkInterface.toUpperCase(), plan.jlinkSpeed));
     commander = spawn(plan.jlinkCommanderExecutable, args, {
       cwd: path.dirname(plan.jlinkCommanderExecutable),
       windowsHide: true
     });
     const output = await waitForExit(commander, 'J-Link Commander', onOutput, signal);
     if (!/O\.K\.|Flash download.*(?:finished|successful)/i.test(output)) {
-      throw new Error('J-Link Commander没有报告烧录成功。');
+      throw new Error(t('error.jlinkNoSuccess'));
     }
-    onOutput('\n烧录完成，目标程序已复位运行，J-Link Commander已退出。\n');
+    onOutput(t('log.flashDoneJlink'));
   } finally {
     await terminateProcess(commander);
     await fs.rm(tempDirectory, { recursive: true, force: true });
@@ -270,7 +278,7 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
   if (signal?.aborted) {
     throw cancellationError();
   }
-  onOutput(`烧录配置：${plan.launchName}\n调试器：${plan.debugger}\nELF文件：${plan.elfPath}\n\n`);
+  onOutput(t('log.header', plan.launchName, plan.debugger, plan.elfPath));
   if (plan.jlinkCommanderExecutable) {
     await runJLinkCommander(plan, onOutput, signal);
     return;
@@ -280,7 +288,7 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
     fs.access(plan.gdbExecutable),
     fs.access(plan.elfPath)
   ]);
-  onOutput('正在连接目标...\n');
+  onOutput(t('log.connecting'));
   const server = spawn(plan.serverExecutable, plan.serverArguments, {
     cwd: path.dirname(plan.serverExecutable),
     windowsHide: true
@@ -288,7 +296,7 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
   let gdb;
   try {
     await waitForServerReady(server, plan.debugger, onOutput, signal);
-    onOutput('\n目标连接成功，开始下载ELF...\n');
+    onOutput(t('log.connected'));
     server.stdout?.on('data', (data) => onOutput(data.toString()));
     server.stderr?.on('data', (data) => onOutput(data.toString()));
     gdb = spawn(plan.gdbExecutable, plan.gdbArguments, {
@@ -296,7 +304,7 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
       windowsHide: true
     });
     await waitForExit(gdb, 'GDB', onOutput, signal);
-    onOutput('\n烧录完成，目标程序已复位运行。\n');
+    onOutput(t('log.flashDone'));
   } finally {
     await terminateProcess(gdb);
     await terminateProcess(server);

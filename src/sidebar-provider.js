@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const vscode = require('vscode');
+const { t } = require('./i18n');
 
 class SidebarProvider {
   constructor(getModel, handleAction) {
@@ -96,50 +97,50 @@ function document(body, script = '') {
 
 function render(model) {
   if (!model) {
-    return document('<div class="empty">No folder containing .project and .cproject was found.</div>');
+    return document(`<div class="empty">${escapeHtml(t('sidebar.noProject'))}</div>`);
   }
   const launchNames = model.launches.map((launch) => launch.name);
   const body = `
     <h2>${escapeHtml(model.projectName)}</h2>
     <div class="path" title="${escapeHtml(model.projectDirectory)}">${escapeHtml(model.projectDirectory)}</div>
     <div class="actions">
-      <button class="primary" data-action="build">Build</button>
-      <button class="primary" data-action="flash">Flash</button>
+      <button class="primary" data-action="build">${escapeHtml(t('sidebar.build'))}</button>
+      <button class="primary" data-action="flash">${escapeHtml(t('sidebar.flash'))}</button>
     </div>
     <section>
       <div class="field">
-        <label>GD32 Embedded Builder</label>
-        <button class="picker" data-action="selectInstallation" title="${escapeHtml(model.installationPath)}">${escapeHtml(model.installationPath || 'Select IDE executable...')}</button>
-      </div>
-      <div class="field">
-        <label for="buildConfiguration">Build configuration</label>
-        <select id="buildConfiguration">${options(model.configurations, model.configuration, 'No build configuration found')}</select>
+        <label>${escapeHtml(t('sidebar.embeddedBuilder'))}</label>
+        <button class="picker" data-action="selectInstallation" title="${escapeHtml(model.installationPath)}">${escapeHtml(model.installationPath || t('sidebar.selectIde'))}</button>
       </div>
     </section>
     <section>
       <div class="field">
-        <label for="launchConfiguration">Flash configuration</label>
-        <select id="launchConfiguration"${model.launches.length === 0 ? ' disabled' : ''}>${options(launchNames, model.launchConfiguration, 'No Eclipse launch configuration found')}</select>
+        <label for="launchConfiguration">${escapeHtml(t('sidebar.flashConfiguration'))}</label>
+        <select id="launchConfiguration"${model.launches.length === 0 ? ' disabled' : ''}>${options(launchNames, model.launchConfiguration, t('sidebar.noLaunchConfig'))}</select>
       </div>
       <div class="field">
-        <label>ELF file</label>
+        <label>${escapeHtml(t('sidebar.flashFile'))}</label>
         <div class="row">
-          <button class="picker" data-action="selectElf" title="${escapeHtml(model.elfPath)}">${escapeHtml(model.elfPath || 'Select .elf file...')}</button>
-          <button class="browse" data-action="selectElf" title="Select ELF file">...</button>
+          <button class="picker" data-action="selectElf" title="${escapeHtml(model.elfPath)}">${escapeHtml(model.flashFileDisplay || t('sidebar.selectFlashFile'))}</button>
+          <button class="browse" data-action="selectElf" title="${escapeHtml(t('sidebar.flashFile'))}">...</button>
         </div>
       </div>
       <div class="field">
-        <label>Debugger</label>
-        <div class="value">${escapeHtml(model.debugger || 'Not configured')}</div>
+        <label>${escapeHtml(t('sidebar.debugger'))}</label>
+        <div class="value">${escapeHtml(model.debugger || t('sidebar.notConfigured'))}</div>
       </div>
     </section>
     <details>
-      <summary>Headless Build</summary>
+      <summary>${escapeHtml(t('sidebar.headlessBuild'))}</summary>
       <div class="field">
-        <label>Workspace</label>
+        <label for="buildConfiguration">${escapeHtml(t('sidebar.buildConfiguration'))}</label>
+        <select id="buildConfiguration">${options(model.configurations, model.configuration, t('sidebar.noBuildConfig'))}</select>
+      </div>
+      <div class="field">
+        <label>${escapeHtml(t('sidebar.workspace'))}</label>
         <button class="picker" data-action="selectWorkspace" title="${escapeHtml(model.workspacePath)}">${escapeHtml(model.workspaceLabel)}</button>
       </div>
-      <label class="toggle"><input id="autoImport" type="checkbox"${model.autoImport ? ' checked' : ''}> Automatically import project</label>
+      <label class="toggle"><input id="autoImport" type="checkbox"${model.autoImport ? ' checked' : ''}> ${escapeHtml(t('sidebar.autoImport'))}</label>
     </details>`;
   const script = `
     const vscode = acquireVsCodeApi();
