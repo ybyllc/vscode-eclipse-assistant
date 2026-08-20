@@ -8,5 +8,5 @@
 
 ## 使用方法
 
-![1787218757106](image/readme/1787218757106.png)
-![1787218760625](image/readme/1787218760625.png)
+![使用方法1](https://raw.githubusercontent.com/ybyllc/vscode-eclipse-cdt/main/image/readme/usage-1.png)
+![使用方法2](https://raw.githubusercontent.com/ybyllc/vscode-eclipse-cdt/main/image/readme/usage-2.png)
