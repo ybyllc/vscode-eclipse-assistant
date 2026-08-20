@@ -5,6 +5,10 @@
   "version": "0.5.0",
   "publisher": "ybyllc",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ybyllc/eclipse-cdt.git"
+  },
   "icon": "media/extension-icon.png",
   "engines": {
     "vscode": "^1.85.0"

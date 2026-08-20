@@ -2,8 +2,10 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   ANSI,
+  createBuildLogHighlighter,
   formatBuildBanner,
   formatBuildResult,
+  highlightBuildLine,
   safeText,
   terminalText
 } = require('../src/build-terminal');
@@ -37,4 +39,32 @@ test('terminal text preserves CRLF and converts bare newlines', () => {
 
 test('banner values cannot inject terminal control sequences', () => {
   assert.equal(safeText('Demo\x1b[31m\n'), 'Demo[31m');
+});
+
+test('build log rules apply xterm-256 colors by severity and line type', () => {
+  assert.ok(highlightBuildLine('main.c:10: error: failed').startsWith(ANSI.error256));
+  assert.ok(highlightBuildLine('main.c:10: warning: unused').startsWith(ANSI.warning256));
+  assert.ok(highlightBuildLine('Finished building: app.elf').startsWith(ANSI.success256));
+  assert.ok(highlightBuildLine('Invoking: GNU C Compiler').startsWith(ANSI.stage256));
+  assert.ok(highlightBuildLine('arm-none-eabi-gcc -c main.c').startsWith(ANSI.command256));
+  assert.ok(highlightBuildLine('text data bss dec hex filename').startsWith(ANSI.size256));
+  assert.equal(highlightBuildLine('Build summary: 0 errors, 0 warnings'), 'Build summary: 0 errors, 0 warnings');
+});
+
+test('build log highlighter preserves lines split across process chunks', () => {
+  const output = [];
+  const highlighter = createBuildLogHighlighter((text) => output.push(text));
+  highlighter.write(Buffer.from('main.c:1: warn'));
+  assert.deepEqual(output, []);
+  highlighter.write(Buffer.from('ing: unused\nnext'));
+  highlighter.flush();
+
+  assert.ok(output[0].startsWith(ANSI.warning256));
+  assert.ok(output[0].includes(`warning: unused${ANSI.reset}\r\n`));
+  assert.equal(output[1], 'next');
+});
+
+test('existing ANSI-colored tool output passes through unchanged', () => {
+  const colored = '\x1b[31mtool error\x1b[0m';
+  assert.equal(highlightBuildLine(colored), colored);
 });

@@ -5,7 +5,6 @@ test/**
 *.vsix
 插件说明.md
 使用方法*.png
-image/**
 media/Eclipse插件图标设计.png
 media/Eclipse插件图标设计（单色）.png
 media/eclipse-cdt.svg

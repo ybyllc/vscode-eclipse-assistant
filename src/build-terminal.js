@@ -10,7 +10,13 @@ const ANSI = {
   blue: '\x1b[34m',
   magenta: '\x1b[35m',
   cyan: '\x1b[36m',
-  white: '\x1b[37m'
+  white: '\x1b[37m',
+  error256: '\x1b[38;5;203m',
+  warning256: '\x1b[38;5;214m',
+  success256: '\x1b[38;5;77m',
+  stage256: '\x1b[38;5;45m',
+  command256: '\x1b[38;5;244m',
+  size256: '\x1b[38;5;141m'
 };
 
 function safeText(value) {
@@ -19,6 +25,64 @@ function safeText(value) {
 
 function terminalText(chunk) {
   return chunk.toString('utf8').replace(/(^|[^\r])\n/g, '$1\r\n');
+}
+
+function highlightBuildLine(line) {
+  if (!line || line.includes('\x1b[')) {
+    return line;
+  }
+  const matchableLine = line
+    .replace(/\b0\s+errors?\b/gi, '')
+    .replace(/\b0\s+warnings?\b/gi, '');
+  const rules = [
+    {
+      pattern: /(?:\bfatal(?: error)?\b|\berror\b|undefined reference|collect2:|make(?:\.exe)?: \*\*\*|build failed)/i,
+      color: ANSI.error256
+    },
+    {
+      pattern: /(?:\bwarning\b|\bwarn\s*:)/i,
+      color: ANSI.warning256
+    },
+    {
+      pattern: /(?:build (?:finished|complete|completed|successful|succeeded)|finished building)/i,
+      color: ANSI.success256
+    },
+    {
+      pattern: /(?:\*{2,}\s*build of configuration|\bbuilding file\b|\binvoking\b|\bstarting build\b)/i,
+      color: ANSI.stage256
+    },
+    {
+      pattern: /^\s*(?:"?[A-Za-z]:[^\r\n]*\\)?(?:arm-none-eabi-)?(?:gcc|g\+\+|as|ld|objcopy|objdump|size|make)(?:\.exe)?\b/i,
+      color: ANSI.command256
+    },
+    {
+      pattern: /^\s*(?:text\s+data\s+bss\s+dec\s+hex\s+filename|\d+\s+\d+\s+\d+\s+\d+\s+[0-9a-f]+\s+\S+)/i,
+      color: ANSI.size256
+    }
+  ];
+  const match = rules.find((rule) => rule.pattern.test(matchableLine));
+  return match ? `${match.color}${line}${ANSI.reset}` : line;
+}
+
+function createBuildLogHighlighter(onWrite) {
+  let pending = '';
+  return {
+    write(chunk) {
+      const text = pending + chunk.toString('utf8');
+      const lines = text.split('\n');
+      pending = lines.pop();
+      for (const rawLine of lines) {
+        const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+        onWrite(`${highlightBuildLine(line)}\r\n`);
+      }
+    },
+    flush() {
+      if (pending) {
+        onWrite(highlightBuildLine(pending.endsWith('\r') ? pending.slice(0, -1) : pending));
+        pending = '';
+      }
+    }
+  };
 }
 
 function formatBuildBanner(options) {
@@ -63,6 +127,8 @@ function createBuildPseudoterminal(vscode, options) {
   let child;
   let completed = false;
   let startedAt;
+  const stdout = createBuildLogHighlighter((text) => writeEmitter.fire(text));
+  const stderr = createBuildLogHighlighter((text) => writeEmitter.fire(text));
 
   const finish = (exitCode, kind, message) => {
     if (completed) {
@@ -84,12 +150,16 @@ function createBuildPseudoterminal(vscode, options) {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe']
       });
-      child.stdout.on('data', (chunk) => writeEmitter.fire(terminalText(chunk)));
-      child.stderr.on('data', (chunk) => writeEmitter.fire(terminalText(chunk)));
+      child.stdout.on('data', (chunk) => stdout.write(chunk));
+      child.stderr.on('data', (chunk) => stderr.write(chunk));
       child.once('error', (error) => {
+        stdout.flush();
+        stderr.flush();
         finish(-1, 'failed', options.failedLabel(-1, 0, error.message));
       });
       child.once('close', (exitCode) => {
+        stdout.flush();
+        stderr.flush();
         const duration = Math.max(0, (Date.now() - startedAt) / 1000);
         if (exitCode === 0) {
           finish(0, 'success', options.successLabel(duration));
@@ -111,9 +181,11 @@ function createBuildPseudoterminal(vscode, options) {
 
 module.exports = {
   ANSI,
+  createBuildLogHighlighter,
   createBuildPseudoterminal,
   formatBuildBanner,
   formatBuildResult,
+  highlightBuildLine,
   safeText,
   terminalText
 };

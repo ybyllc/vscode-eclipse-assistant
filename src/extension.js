@@ -195,7 +195,7 @@ async function createTask(mode, definition = {}) {
     focus: false,
     panel: vscode.TaskPanelKind.Dedicated,
     showReuseMessage: false,
-    clear: false
+    clear: true
   };
   return task;
 }
