@@ -1,5 +1,5 @@
 {
-  "description": "Build and flash Eclipse CDT managed projects from Visual Studio Code using the vendor headless builder.",
+  "description": "Build and flash Eclipse CDT projects directly in VS Code.",
   "command.build": "Eclipse CDT: Build",
   "command.flash": "Eclipse CDT: Flash",
   "command.cleanBuild": "Eclipse CDT: Clean and Build",

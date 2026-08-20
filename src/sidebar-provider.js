@@ -81,6 +81,7 @@ function document(body, script = '') {
     .field { margin-bottom: 12px; }
     label { display: block; margin-bottom: 5px; color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 600; text-transform: uppercase; }
     select { padding: 4px 7px; }
+    .select-wrap { width: 100%; }
     .picker { padding: 4px 7px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .value { display: flex; align-items: center; padding: 4px 7px; overflow-wrap: anywhere; }
     .row { display: grid; grid-template-columns: minmax(0, 1fr) 30px; gap: 5px; }
@@ -116,7 +117,9 @@ function render(model) {
     <section>
       <div class="field">
         <label for="launchConfiguration">${escapeHtml(t('sidebar.flashConfiguration'))}</label>
-        <select id="launchConfiguration"${model.launches.length === 0 ? ' disabled' : ''}>${options(launchNames, model.launchConfiguration, t('sidebar.noLaunchConfig'))}</select>
+        <div class="select-wrap"${model.launches.length === 0 ? ` title="${escapeHtml(t('sidebar.createLaunchFirst'))}"` : ''}>
+          <select id="launchConfiguration"${model.launches.length === 0 ? ' disabled' : ''}>${options(launchNames, model.launchConfiguration, t('sidebar.noLaunchConfig'))}</select>
+        </div>
       </div>
       <div class="field">
         <label>${escapeHtml(t('sidebar.flashFile'))}</label>

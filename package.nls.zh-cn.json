@@ -1,5 +1,5 @@
 {
-  "description": "在 Visual Studio Code 中调用厂商 Eclipse Headless Builder 构建并烧录 Eclipse CDT 工程。",
+  "description": "在 VSCode 里构建和烧录 Eclipse 工程。",
   "command.build": "Eclipse CDT: 构建",
   "command.flash": "Eclipse CDT: 烧录",
   "command.cleanBuild": "Eclipse CDT: 清理并构建",

@@ -1,10 +1,11 @@
 {
-  "name": "eclipse-cdt-bridge",
-  "displayName": "Eclipse CDT Bridge",
+  "name": "eclipse-cdt",
+  "displayName": "Eclipse CDT",
   "description": "%description%",
-  "version": "0.4.1",
-  "publisher": "local",
+  "version": "0.5.0",
+  "publisher": "ybyllc",
   "license": "MIT",
+  "icon": "media/extension-icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -16,7 +17,8 @@
     "CDT",
     "embedded",
     "headless build",
-    "GD32"
+    "GD32",
+    "Flagchip"
   ],
   "activationEvents": [
     "workspaceContains:.cproject",
@@ -133,7 +135,7 @@
         {
           "id": "eclipseBridge",
           "title": "Eclipse CDT",
-          "icon": "media/eclipse-cdt.svg"
+          "icon": "media/activitybar-icon.png"
         }
       ]
     },
@@ -210,7 +212,7 @@
       }
     ],
     "configuration": {
-      "title": "Eclipse CDT Bridge",
+      "title": "Eclipse CDT",
       "properties": {
         "eclipseBridge.installationPath": {
           "type": "string",

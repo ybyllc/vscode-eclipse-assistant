@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <mask id="eclipse-stripes">
+      <rect width="24" height="24" fill="#fff"/>
+      <path fill="#000" d="M4.1 8.25h17.15l.35 1.3H3.75l.35-1.3Zm-.65 2.55h18.9v1.35H3.35l.1-1.35Zm.25 2.65h18.35l-.35 1.35H4.05l-.35-1.35Z"/>
+    </mask>
+  </defs>
+  <circle cx="13" cy="12" r="9.45" fill="#c5c5c5" mask="url(#eclipse-stripes)"/>
+  <path fill="#c5c5c5" d="M11 1.2C4.45 1.4 1 5.7 1 12s3.45 10.6 10 10.8C5.9 20.6 3.4 16.6 3.4 12S5.9 3.4 11 1.2Z"/>
+</svg>

@@ -7,6 +7,7 @@ const {
   resolveIdeInstallation
 } = require('./headless-command');
 const { createFlashPlan, runFlashPlan } = require('./flash-runner');
+const { createBuildPseudoterminal } = require('./build-terminal');
 const { discoverLaunchConfigurations, resolveElfPath, toProjectRelativePath } = require('./launch-model');
 const { findProjectRoot, readProjectInfo } = require('./project-model');
 const { SidebarProvider } = require('./sidebar-provider');
@@ -158,9 +159,23 @@ async function createTask(mode, definition = {}) {
     configuration: context.configuration
   };
   const args = createHeadlessArgs({ ...context, mode });
-  const execution = new vscode.ProcessExecution(context.executable, args, {
-    cwd: context.installationDirectory
-  });
+  const execution = new vscode.CustomExecution(async () => createBuildPseudoterminal(vscode, {
+    executable: context.executable,
+    args,
+    cwd: context.installationDirectory,
+    projectName: context.projectName,
+    configuration: context.configuration,
+    buildLabel: t('terminal.build'),
+    cleanBuildLabel: mode === 'cleanBuild' ? t('terminal.cleanBuild') : undefined,
+    projectLabel: t('terminal.project'),
+    configurationLabel: t('terminal.configuration'),
+    ideLabel: t('terminal.ide'),
+    successLabel: (duration) => t('terminal.success', duration.toFixed(1)),
+    failedLabel: (exitCode, duration, detail) => detail
+      ? t('terminal.failedWithDetail', exitCode, detail)
+      : t('terminal.failed', exitCode, duration.toFixed(1)),
+    stoppedLabel: t('terminal.stopped')
+  }));
   const task = new vscode.Task(
     taskDefinition,
     vscode.TaskScope.Workspace,
@@ -174,6 +189,14 @@ async function createTask(mode, definition = {}) {
   task.group = mode === 'build'
     ? vscode.TaskGroup.Build
     : vscode.TaskGroup.Clean;
+  task.presentationOptions = {
+    echo: false,
+    reveal: vscode.TaskRevealKind.Always,
+    focus: false,
+    panel: vscode.TaskPanelKind.Dedicated,
+    showReuseMessage: false,
+    clear: false
+  };
   return task;
 }
 

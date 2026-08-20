@@ -1,38 +1,26 @@
-# Eclipse CDT Bridge
+# Eclipse CDT
 
-在 Visual Studio Code 中复用 Eclipse CDT 工程的构建和烧录配置。插件读取 `.project`、`.cproject` 和 Eclipse `.launch`，不会修改厂商工程文件。界面语言自动跟随 VS Code 显示语言，支持中文和英文。
+在 VSCode 里构建和烧录 Eclipse 工程。原理是调用厂商 Eclipse 的命令行功能实现。
 
-当前版本：`0.4.1`
+插件读取 `.project`、`.cproject` 和 Eclipse 目录的 `.launch`，可以和 Eclipse 同时打开工程，不会修改厂商工程文件。界面语言支持中文和英文。
 
-## 功能
+目前已适配 `Flagchip` 和 `GD32` 的定制版 Eclipse 开发环境。
 
-- 解析 Eclipse CDT 工程名和 Managed Build 配置。
-- 调用厂商 Eclipse headless 命令行程序（`eclipsec.exe` 或厂商 `*c.exe`）编译。
-- 构建前由 CDT 自动更新生成的 Makefile。
-- 工程不在 Eclipse workspace 时自动导入。
-- 提供普通 Build 和 Clean and Build 任务。
-- 支持从命令面板切换 `.cproject` 中已有的构建配置。
-- 提供 Eclipse CDT Activity Bar 侧栏，集中显示和修改构建配置。
-- 读取厂商 Eclipse 启动配置中的烧录文件、调试器、GDB Server、端口和下载命令。
-- 支持解析 GD32 启动配置，以及 Flagchip FC IDE 的 J-Link/OpenOCD 启动配置。
-- 提供编辑器顶部 Build 和 Flash 按钮，并支持 4 组可切换图标。
-- Flash 按钮执行“构建当前配置 → 构建成功后烧录”；构建失败时不会烧录旧文件。
-- 使用 Eclipse 风格快捷键：`Ctrl+B` 构建，`F11` 烧录。
-- 与厂商 Eclipse GUI 共用 `.project`、`.cproject` 和构建目录。
+当前版本：`0.5.0`
 
-## 使用
+## 使用方法
 
 1. 在 VS Code 中打开包含 `.project` 和 `.cproject` 的工程。
-2. 点击 Activity Bar 中的芯片图标打开 `Eclipse CDT` 侧栏。
-3. 点击 `Eclipse IDE 客户端` 选择项，再通过“浏览 Eclipse IDE 客户端程序...”选择主程序 EXE，例如 `GD32EmbeddedBuilder.exe`、`Flagchip_FC_IDE.exe` 或标准 `eclipse.exe`。用户不需要寻找命令行构建器、workspace、J-Link、OpenOCD 或 GDB；插件会从主程序所在目录自动查找，已选择的主程序会保留在历史列表中。
+2. 点击 Activity Bar 中的 Eclipse CDT 图标打开侧栏。
+3. 点击 `Eclipse 客户端` 选择项，浏览并选择主程序 EXE，例如 `GD32EmbeddedBuilder.exe`、`Flagchip_FC_IDE.exe` 或标准 `eclipse.exe`。插件会自动寻找命令行构建器、workspace、J-Link、OpenOCD 或 GDB，已选择的主程序会保留在历史列表中。
 4. 一般不需要修改构建配置；需要切换 Debug 或 Release 时，在底部 `其他设置` 折叠区选择 `.cproject` 自带的配置。
-5. 在 `Flash configuration` 中选择厂商 Eclipse 保存的启动配置。
+5. 在 `Flash configuration` 中选择厂商 Eclipse 保存的启动配置。如果没有找到配置，下拉框会禁用；鼠标悬停时提示先在 IDE 里生成烧录配置。
 6. 检查自动带出的烧录文件和 Debugger 字段，必要时重新选择 ELF、AXF、OUT、HEX 或 BIN 文件。工程内文件保存并显示为相对路径，例如 `Debug_FLASH/FC_DC50_IHU.elf`。
 7. 使用编辑器顶部按钮、侧栏按钮或快捷键执行 Build 和 Flash。Flash 会先构建当前选中的 CDT 配置，成功后才开始烧录。
 
-编辑器顶部 Build/Flash 按钮图标可以通过设置 `eclipseBridge.toolbarIcons` 切换，也可以执行 `Eclipse CDT: Select Toolbar Icon Theme` 命令选择。当前提供 4 组图标：工具、芯片、经典和打包。
+构建终端隐藏 VS Code 默认的长命令回显，并用不同强调色显示构建动作、工程、配置和 Eclipse 客户端；构建成功、失败或停止时分别显示绿色、红色或黄色结果。厂商 Eclipse、Make 和编译器的原始输出保持不变。
 
-普通 J-Link 配置使用厂商 IDE 自带的 J-Link Commander 执行一次性下载、复位、运行和退出；Flagchip 自定义设备 XML 只能由 J-Link GDB Server 接收，因此 FC J-Link 自动改走 GDB Server + GDB 下载。GD-Link/OpenOCD 配置也通过对应 GDB Server 完成下载。侧栏的“其他设置”折叠区集中放置低频设置，包括构建配置、Headless Workspace 模式和自动导入状态。
+编辑器顶部 Build/Flash 按钮图标可以通过设置 `eclipseBridge.toolbarIcons` 切换，也可以执行 `Eclipse CDT: Select Toolbar Icon Theme` 命令选择。当前提供 4 组图标：工具、芯片、经典和打包。
 
 烧录过程中再次点击 Flash，或取消 VS Code 的烧录进度通知，可以立即停止当前任务。插件生成的连接、成功、失败和停止结果会根据 VS Code 界面语言输出中文或英文；J-Link/OpenOCD/GDB 自身的原始日志保持原文。
 
@@ -42,7 +30,7 @@
 
 | 配置 | 默认值 | 说明 |
 | --- | --- | --- |
-| `eclipseBridge.installationPath` | 空 | Eclipse IDE主程序路径，例如 `eclipse.exe`、`GD32EmbeddedBuilder.exe` 或 `Flagchip_FC_IDE.exe`。插件自动寻找命令行构建器和配套工具。 |
+| `eclipseBridge.installationPath` | 空 | Eclipse IDE 主程序路径，例如 `eclipse.exe`、`GD32EmbeddedBuilder.exe` 或 `Flagchip_FC_IDE.exe`。插件自动寻找命令行构建器和配套工具。 |
 | `eclipseBridge.workspacePath` | 空 | Headless Build 使用的 Eclipse workspace。留空时按工程创建独立 workspace。 |
 | `eclipseBridge.configuration` | 空 | `.cproject` 中的 CDT 构建配置。留空时优先选择名称包含 Debug 的配置。 |
 | `eclipseBridge.launchConfiguration` | 空 | 用于 Flash 的厂商 Eclipse `.launch` 配置。留空时选择当前工程的第一个可用配置。 |
@@ -99,13 +87,19 @@ VS Code Flash
 
 ```text
 src/extension.js          VS Code 命令、任务和配置入口
+src/build-terminal.js     彩色构建终端、进程退出和停止处理
 src/i18n.js               中英文界面文案与语言切换
+src/ide-discovery.js      IDE 主程序识别与配套工具查找
 src/project-model.js      .project/.cproject 解析与配置选择
-src/headless-command.js   Headless Build 命令参数生成与 IDE 路径识别
+src/headless-command.js   Headless Build 命令参数生成
 src/launch-model.js       Eclipse .launch 解析、烧录文件和 Debugger 字段
 src/flash-runner.js       GDB Server 启动与批量烧录
 src/sidebar-provider.js   交互式 Activity Bar 侧栏
-media/eclipse-cdt.svg     Activity Bar 侧栏图标
+media/extension-icon.png  扩展和 Marketplace 彩色图标（256×256）
+media/activitybar-icon.png
+                          Activity Bar 侧栏按钮透明图标（128×128）
+media/Eclipse插件图标设计*.png
+                          图标原始设计文件（不打包进 VSIX）
 test/project-model.test.js
                           Eclipse 工程解析单元测试
 package.json              扩展清单、命令和配置定义
@@ -121,6 +115,7 @@ npm test
 node --check src/extension.js
 node --check src/project-model.js
 node --check src/headless-command.js
+node --check src/ide-discovery.js
 node --check src/launch-model.js
 node --check src/flash-runner.js
 node --check src/sidebar-provider.js
@@ -154,11 +149,19 @@ npm run package
 
 ## 版本记录
 
-### 0.4.1
+### 0.5.0
 
-- 适配 Flagchip FC IDE 的 J-Link/OpenOCD `.launch`，读取 FC 芯片型号、接口、速度、端口和烧录文件。
-- 自动定位 FC IDE 内置的 J-Link GDB Server、OpenOCD、GDB 和 `JLinkDevices.xml`。
-- FC 自定义 J-Link 设备使用支持设备 XML 的 J-Link GDB Server + GDB 流程，并按 SEGGER 语法分开发送 reset、halt 和 load 命令。
+- 插件显示名称改为 Eclipse CDT，包名改为 `eclipse-cdt`，publisher 改为 `ybyllc`。
+- 更新插件描述为“在 VSCode 里构建和烧录 Eclipse 工程”。
+- 恢复编辑器顶部 Build/Flash 按钮图标主题切换，提供工具、芯片、经典、打包 4 组图标。
+- 保留对 Flagchip FC IDE 的 J-Link/OpenOCD `.launch` 支持，自动定位 FC IDE 内置工具。
+- Flash 执行“构建当前配置 → 构建成功后烧录”，构建失败时不会烧录旧文件。
+
+### 0.5.0
+
+- 构建任务改用彩色终端标题，按状态突出显示成功、失败和停止结果。
+
+### 0.4.1
 
 ### 0.4.0
 
