@@ -2,7 +2,7 @@
   "name": "eclipse-assistant",
   "displayName": "Eclipse Assistant",
   "description": "%description%",
-  "version": "0.5.4",
+  "version": "0.5.3",
   "publisher": "ybyllc",
   "license": "MIT",
   "repository": {
