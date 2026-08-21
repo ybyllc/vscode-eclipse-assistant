@@ -8,6 +8,7 @@ const {
 } = require('./headless-command');
 const { createFlashPlan, runFlashPlan } = require('./flash-runner');
 const { createBuildPseudoterminal } = require('./build-terminal');
+const { createBuildFailureLogger } = require('./build-log');
 const { discoverLaunchConfigurations, resolveElfPath, toProjectRelativePath } = require('./launch-model');
 const { findProjectRoot, readProjectInfo } = require('./project-model');
 const { SidebarProvider } = require('./sidebar-provider');
@@ -158,24 +159,42 @@ async function createTask(mode, definition = {}) {
     configuration: context.configuration
   };
   const args = createHeadlessArgs({ ...context, mode });
-  const execution = new vscode.CustomExecution(async () => createBuildPseudoterminal(vscode, {
-    executable: context.executable,
-    args,
-    cwd: context.installationDirectory,
-    projectName: context.projectName,
-    configuration: context.configuration,
-    buildLabel: t('terminal.build'),
-    cleanBuildLabel: mode === 'cleanBuild' ? t('terminal.cleanBuild') : undefined,
-    projectLabel: t('terminal.project'),
-    configurationLabel: t('terminal.configuration'),
-    ideLabel: t('terminal.ide'),
-    successLabel: (duration) => t('terminal.success', duration.toFixed(1)),
-    failedLabel: (exitCode, duration, detail) => detail
-      ? t('terminal.failedWithDetail', exitCode, detail)
-      : t('terminal.failed', exitCode, duration.toFixed(1)),
-    incompatibleIdeLabel: (count) => t('terminal.incompatibleIde', count),
-    stoppedLabel: t('terminal.stopped')
-  }));
+  const execution = new vscode.CustomExecution(async () => {
+    let buildLog;
+    try {
+      buildLog = await createBuildFailureLogger({
+        baseDirectory: path.join(extensionContext.globalStorageUri.fsPath, 'build-logs'),
+        projectDirectory: context.projectDirectory,
+        projectName: context.projectName,
+        configuration: context.configuration,
+        executable: context.executable,
+        args,
+        limit: configurationFor(context.projectDirectory).get('failedBuildLogLimit', 5)
+      });
+    } catch (error) {
+      console.error('Could not initialize the failed build log.', error);
+    }
+    return createBuildPseudoterminal(vscode, {
+      executable: context.executable,
+      args,
+      cwd: context.installationDirectory,
+      projectName: context.projectName,
+      configuration: context.configuration,
+      buildLabel: t('terminal.build'),
+      cleanBuildLabel: mode === 'cleanBuild' ? t('terminal.cleanBuild') : undefined,
+      projectLabel: t('terminal.project'),
+      configurationLabel: t('terminal.configuration'),
+      ideLabel: t('terminal.ide'),
+      successLabel: (duration) => t('terminal.success', duration.toFixed(1)),
+      failedLabel: (exitCode, duration, detail) => detail
+        ? t('terminal.failedWithDetail', exitCode, detail)
+        : t('terminal.failed', exitCode, duration.toFixed(1)),
+      incompatibleIdeLabel: (count) => t('terminal.incompatibleIde', count),
+      stoppedLabel: t('terminal.stopped'),
+      savedLogLabel: (logPath) => t('terminal.failedLogSaved', logPath),
+      buildLog
+    });
+  });
   const task = new vscode.Task(
     taskDefinition,
     vscode.TaskScope.Workspace,

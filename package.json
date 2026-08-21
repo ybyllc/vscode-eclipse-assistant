@@ -2,7 +2,7 @@
   "name": "eclipse-assistant",
   "displayName": "Eclipse Assistant",
   "description": "%description%",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "ybyllc",
   "license": "MIT",
   "repository": {
@@ -180,6 +180,14 @@
           "default": true,
           "scope": "resource",
           "description": "%config.autoImport%"
+        },
+        "eclipseBridge.failedBuildLogLimit": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 0,
+          "maximum": 5,
+          "scope": "resource",
+          "description": "%config.failedBuildLogLimit%"
         }
       }
     },

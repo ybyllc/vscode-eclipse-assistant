@@ -15,6 +15,7 @@
   "config.launchConfiguration": "用于烧录的 Eclipse 启动配置。",
   "config.elfPath": "用于烧录的文件。工程内文件保存为相对路径，支持选择 ELF、AXF、OUT、HEX 和 BIN 等常用格式。",
   "config.autoImport": "工程尚未出现在所选 Eclipse workspace 中时自动导入。",
+  "config.failedBuildLogLimit": "失败构建日志保留数量：每个工程保留最新 0 到 5 条失败日志。设为 0 可关闭；构建成功或主动停止时不保留日志。",
   "task.mode": "Headless CDT 构建模式。",
   "task.projectDirectory": "包含 .project 和 .cproject 的目录。",
   "task.configuration": "CDT 构建配置名。"

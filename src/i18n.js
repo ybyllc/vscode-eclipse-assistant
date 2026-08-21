@@ -53,6 +53,7 @@ const zh = {
   'terminal.failedWithDetail': '构建进程启动失败，退出代码 {0}：{1}',
   'terminal.incompatibleIde': '构建失败：所选 Eclipse 客户端缺少工程所需的 Managed Build 插件，或插件版本不兼容（{0} 项工程配置无法解析并被忽略）。请切换到该工程对应厂商的 Eclipse 客户端。',
   'terminal.stopped': '构建已停止。',
+  'terminal.failedLogSaved': '失败构建日志已保存至：{0}',
   // Flash log
   'log.stopping': '正在停止烧录...',
   'log.stopped': '烧录已停止。',
@@ -159,6 +160,7 @@ const en = {
   'terminal.failedWithDetail': 'Could not start the build process (exit code {0}): {1}',
   'terminal.incompatibleIde': 'Build failed: the selected Eclipse client is missing the required Managed Build plug-ins, or their versions are incompatible ({0} project settings could not be resolved and were ignored). Select the vendor Eclipse client for this project.',
   'terminal.stopped': 'Build stopped.',
+  'terminal.failedLogSaved': 'Failed build log saved to: {0}',
   'log.stopping': 'Stopping flash...',
   'log.stopped': 'Flash stopped.',
   'log.buildingBeforeFlash': 'Starting the pre-flash build. See the Eclipse Assistant Build terminal for detailed output.',

@@ -117,6 +117,10 @@ function formatBuildResult(kind, message) {
   return `\r\n${ANSI.bold}${color}${safeText(message)}${ANSI.reset}\r\n`;
 }
 
+function plainTerminalText(text) {
+  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '').replace(/\r?\n/g, '\r\n');
+}
+
 function stopProcessTree(child) {
   if (!child || child.exitCode !== null || child.killed) {
     return;
@@ -148,13 +152,24 @@ function createBuildPseudoterminal(vscode, options) {
   const stdout = createBuildLogHighlighter((text) => writeEmitter.fire(text), inspectLine);
   const stderr = createBuildLogHighlighter((text) => writeEmitter.fire(text), inspectLine);
 
-  const finish = (exitCode, kind, message) => {
+  const finish = async (exitCode, kind, message) => {
     if (completed) {
       return;
     }
     completed = true;
-    writeEmitter.fire(formatBuildResult(kind, message));
+    const result = formatBuildResult(kind, message);
+    writeEmitter.fire(result);
+    try {
+      const savedLog = await options.buildLog?.complete(kind, plainTerminalText(result));
+      if (savedLog && options.savedLogLabel) {
+        writeEmitter.fire(`${safeText(options.savedLogLabel(savedLog))}\r\n`);
+      }
+    } catch (error) {
+      console.error('Could not save the failed build log.', error);
+    }
     closeEmitter.fire(exitCode);
+    writeEmitter.dispose();
+    closeEmitter.dispose();
   };
 
   return {
@@ -168,33 +183,37 @@ function createBuildPseudoterminal(vscode, options) {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe']
       });
-      child.stdout.on('data', (chunk) => stdout.write(chunk));
-      child.stderr.on('data', (chunk) => stderr.write(chunk));
+      child.stdout.on('data', (chunk) => {
+        options.buildLog?.append(chunk);
+        stdout.write(chunk);
+      });
+      child.stderr.on('data', (chunk) => {
+        options.buildLog?.append(chunk);
+        stderr.write(chunk);
+      });
       child.once('error', (error) => {
         stdout.flush();
         stderr.flush();
-        finish(-1, 'failed', options.failedLabel(-1, 0, error.message));
+        void finish(-1, 'failed', options.failedLabel(-1, 0, error.message));
       });
       child.once('close', (exitCode) => {
         stdout.flush();
         stderr.flush();
         const duration = Math.max(0, (Date.now() - startedAt) / 1000);
         if (compatibilityErrorCount > 0) {
-          finish(2, 'failed', options.incompatibleIdeLabel(compatibilityErrorCount));
+          void finish(2, 'failed', options.incompatibleIdeLabel(compatibilityErrorCount));
         } else if (exitCode === 0) {
-          finish(0, 'success', options.successLabel(duration));
+          void finish(0, 'success', options.successLabel(duration));
         } else {
-          finish(exitCode ?? -1, 'failed', options.failedLabel(exitCode ?? -1, duration));
+          void finish(exitCode ?? -1, 'failed', options.failedLabel(exitCode ?? -1, duration));
         }
       });
     },
     close() {
       if (!completed) {
         stopProcessTree(child);
-        finish(130, 'stopped', options.stoppedLabel);
+        void finish(130, 'stopped', options.stoppedLabel);
       }
-      writeEmitter.dispose();
-      closeEmitter.dispose();
     }
   };
 }
@@ -207,6 +226,7 @@ module.exports = {
   formatBuildResult,
   highlightBuildLine,
   isManagedBuildCompatibilityError,
+  plainTerminalText,
   safeText,
   terminalText
 };

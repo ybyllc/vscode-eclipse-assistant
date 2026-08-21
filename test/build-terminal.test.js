@@ -7,6 +7,7 @@ const {
   formatBuildResult,
   highlightBuildLine,
   isManagedBuildCompatibilityError,
+  plainTerminalText,
   safeText,
   terminalText
 } = require('../src/build-terminal');
@@ -36,6 +37,10 @@ test('result colors reflect success, failure, and stop states', () => {
 
 test('terminal text preserves CRLF and converts bare newlines', () => {
   assert.equal(terminalText(Buffer.from('one\ntwo\r\n')), 'one\r\ntwo\r\n');
+});
+
+test('saved terminal text removes ANSI colors', () => {
+  assert.equal(plainTerminalText(`${ANSI.red}failed${ANSI.reset}\n`), 'failed\r\n');
 });
 
 test('banner values cannot inject terminal control sequences', () => {
