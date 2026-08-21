@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ybyllc/vscode-eclipse-cdt.git"
+    "url": "https://github.com/ybyllc/vscode-eclipse-assistant.git"
   },
   "icon": "media/extension-icon.png",
   "engines": {
