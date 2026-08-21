@@ -18,3 +18,7 @@
 `Run` → `Debug Configurations...` → 选择一个配置，双击创建 → 选择烧录文件。
 
 ![编译准备](image/readme/debug-setup.png)
+
+## 版本记录
+
+完整更新历史请查看 [CHANGELOG.md](CHANGELOG.md)。
