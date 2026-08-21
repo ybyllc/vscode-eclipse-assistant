@@ -16,6 +16,7 @@
   "config.elfPath": "Flash file used by Flash. Project files are stored as relative paths. Common formats: ELF, AXF, OUT, HEX, and BIN.",
   "config.autoImport": "Import the project into the selected Eclipse workspace when it is not already present.",
   "config.failedBuildLogLimit": "Failed build log retention: keep the newest 0 to 5 failed build logs for each project. Set to 0 to disable logging. Successful and stopped builds are not retained.",
+  "config.failedBuildLogDirectory": "Failed build log root directory. Empty uses VS Code extension storage. Absolute and project-relative paths are supported, along with ${workspaceFolder} and ${projectDir}. Logs are isolated in a project-specific subdirectory.",
   "task.mode": "Headless CDT build mode.",
   "task.projectDirectory": "Directory containing .project and .cproject.",
   "task.configuration": "CDT build configuration name."

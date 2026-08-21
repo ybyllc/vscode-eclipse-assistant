@@ -8,7 +8,7 @@ const {
 } = require('./headless-command');
 const { createFlashPlan, runFlashPlan } = require('./flash-runner');
 const { createBuildPseudoterminal } = require('./build-terminal');
-const { createBuildFailureLogger } = require('./build-log');
+const { createBuildFailureLogger, resolveBuildLogBaseDirectory } = require('./build-log');
 const { discoverLaunchConfigurations, resolveElfPath, toProjectRelativePath } = require('./launch-model');
 const { findProjectRoot, readProjectInfo } = require('./project-model');
 const { SidebarProvider } = require('./sidebar-provider');
@@ -162,14 +162,24 @@ async function createTask(mode, definition = {}) {
   const execution = new vscode.CustomExecution(async () => {
     let buildLog;
     try {
+      const config = configurationFor(context.projectDirectory);
+      const defaultLogDirectory = path.join(extensionContext.globalStorageUri.fsPath, 'build-logs');
+      const workspaceDirectory = vscode.workspace.getWorkspaceFolder(
+        vscode.Uri.file(context.projectDirectory)
+      )?.uri.fsPath;
       buildLog = await createBuildFailureLogger({
-        baseDirectory: path.join(extensionContext.globalStorageUri.fsPath, 'build-logs'),
+        baseDirectory: resolveBuildLogBaseDirectory(
+          config.get('failedBuildLogDirectory', ''),
+          defaultLogDirectory,
+          context.projectDirectory,
+          workspaceDirectory
+        ),
         projectDirectory: context.projectDirectory,
         projectName: context.projectName,
         configuration: context.configuration,
         executable: context.executable,
         args,
-        limit: configurationFor(context.projectDirectory).get('failedBuildLogLimit', 5)
+        limit: config.get('failedBuildLogLimit', 5)
       });
     } catch (error) {
       console.error('Could not initialize the failed build log.', error);

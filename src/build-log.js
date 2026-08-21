@@ -4,6 +4,21 @@ const path = require('node:path');
 
 const MAX_FAILED_LOGS = 5;
 
+/** Resolves a configured log root without changing the project-specific subdirectory. */
+function resolveBuildLogBaseDirectory(configuredDirectory, defaultDirectory, projectDirectory, workspaceDirectory) {
+  const configured = String(configuredDirectory || '').trim();
+  if (!configured) {
+    return path.resolve(defaultDirectory);
+  }
+
+  const expanded = configured
+    .replace(/\$\{projectDir\}/g, () => projectDirectory)
+    .replace(/\$\{workspaceFolder\}/g, () => workspaceDirectory || projectDirectory);
+  return path.isAbsolute(expanded)
+    ? path.normalize(expanded)
+    : path.resolve(projectDirectory, expanded);
+}
+
 function safeFileName(value) {
   return String(value || 'build')
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
@@ -123,5 +138,6 @@ async function createBuildFailureLogger(options) {
 module.exports = {
   MAX_FAILED_LOGS,
   createBuildFailureLogger,
+  resolveBuildLogBaseDirectory,
   safeFileName
 };

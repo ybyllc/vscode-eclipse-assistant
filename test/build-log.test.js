@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { createBuildFailureLogger } = require('../src/build-log');
+const { createBuildFailureLogger, resolveBuildLogBaseDirectory } = require('../src/build-log');
 
 async function createTemporaryDirectory(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'eclipse-assistant-log-test-'));
@@ -80,4 +80,24 @@ test('zero retention disables build log creation', async (t) => {
   const logger = await createBuildFailureLogger(loggerOptions(directory, { limit: 0 }));
   assert.equal(logger, undefined);
   assert.deepEqual(await listFilesRecursively(directory), []);
+});
+
+test('resolves default, absolute, relative, and variable-based log directories', () => {
+  const projectDirectory = path.resolve('C:\\projects\\Demo');
+  const workspaceDirectory = path.resolve('C:\\projects');
+  const defaultDirectory = path.resolve('C:\\extension-storage\\build-logs');
+
+  assert.equal(resolveBuildLogBaseDirectory('', defaultDirectory, projectDirectory), defaultDirectory);
+  assert.equal(
+    resolveBuildLogBaseDirectory('logs', defaultDirectory, projectDirectory),
+    path.resolve(projectDirectory, 'logs')
+  );
+  assert.equal(
+    resolveBuildLogBaseDirectory('${projectDir}\\.logs', defaultDirectory, projectDirectory),
+    path.resolve(projectDirectory, '.logs')
+  );
+  assert.equal(
+    resolveBuildLogBaseDirectory('${workspaceFolder}\\logs', defaultDirectory, projectDirectory, workspaceDirectory),
+    path.resolve(workspaceDirectory, 'logs')
+  );
 });
