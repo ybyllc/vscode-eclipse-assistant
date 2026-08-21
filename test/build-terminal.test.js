@@ -6,6 +6,7 @@ const {
   formatBuildBanner,
   formatBuildResult,
   highlightBuildLine,
+  isManagedBuildCompatibilityError,
   safeText,
   terminalText
 } = require('../src/build-terminal');
@@ -45,9 +46,15 @@ test('build log rules apply xterm-256 colors by severity and line type', () => {
   assert.ok(highlightBuildLine('main.c:10: error: failed').startsWith(ANSI.error256));
   assert.ok(highlightBuildLine('main.c:10: warning: unused').startsWith(ANSI.warning256));
   assert.ok(highlightBuildLine('Finished building: app.elf').startsWith(ANSI.success256));
+  assert.ok(highlightBuildLine('Download successful').startsWith(ANSI.success256));
+  assert.ok(highlightBuildLine('Download not successful').startsWith(ANSI.error256));
   assert.ok(highlightBuildLine('Invoking: GNU C Compiler').startsWith(ANSI.stage256));
   assert.ok(highlightBuildLine('arm-none-eabi-gcc -c main.c').startsWith(ANSI.command256));
   assert.ok(highlightBuildLine('text data bss dec hex filename').startsWith(ANSI.size256));
+  assert.ok(highlightBuildLine(
+    'Managed Build system manifest file error: Duplicate identifier ilg.gnuarmeclipse.managedbuild.cross.tool.assembler for element type Tool.'
+  ).startsWith(ANSI.white256));
+  assert.ok(highlightBuildLine('Managed Build system manifest file error: Invalid extension').startsWith(ANSI.error256));
   assert.equal(highlightBuildLine('Build summary: 0 errors, 0 warnings'), 'Build summary: 0 errors, 0 warnings');
 });
 
@@ -67,4 +74,16 @@ test('build log highlighter preserves lines split across process chunks', () => 
 test('existing ANSI-colored tool output passes through unchanged', () => {
   const colored = '\x1b[31mtool error\x1b[0m';
   assert.equal(highlightBuildLine(colored), colored);
+});
+
+test('distinguishes incompatible Managed Build options from common duplicate identifiers', () => {
+  assert.equal(isManagedBuildCompatibilityError(
+    'Managed Build system manifest file error: Option com.gigadevice.mbs.arm.option.toolChain.path.1 uses a null category that is invalid in its context. The option was ignored.'
+  ), true);
+  assert.equal(isManagedBuildCompatibilityError(
+    'Managed Build system manifest file error: Option com.gigadevice.mbs.arm.option.toolChain.path.1 uses a null categorythat is invalid in its context. The option was ignored.'
+  ), true);
+  assert.equal(isManagedBuildCompatibilityError(
+    'Managed Build system manifest file error: Duplicate identifier ilg.gnuarmeclipse.managedbuild.cross.tool.assembler for element type Tool.'
+  ), false);
 });

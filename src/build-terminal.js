@@ -16,7 +16,8 @@ const ANSI = {
   success256: '\x1b[38;5;77m',
   stage256: '\x1b[38;5;45m',
   command256: '\x1b[38;5;244m',
-  size256: '\x1b[38;5;141m'
+  size256: '\x1b[38;5;141m',
+  white256: '\x1b[38;5;255m'
 };
 
 function safeText(value) {
@@ -36,7 +37,11 @@ function highlightBuildLine(line) {
     .replace(/\b0\s+warnings?\b/gi, '');
   const rules = [
     {
-      pattern: /(?:\bfatal(?: error)?\b|\berror\b|undefined reference|collect2:|make(?:\.exe)?: \*\*\*|build failed)/i,
+      pattern: /^Managed Build system manifest file error:\s*Duplicate identifier\b/i,
+      color: ANSI.white256
+    },
+    {
+      pattern: /(?:\bfatal(?: error)?\b|\berror\b|undefined reference|collect2:|make(?:\.exe)?: \*\*\*|build failed|not successful)/i,
       color: ANSI.error256
     },
     {
@@ -44,7 +49,7 @@ function highlightBuildLine(line) {
       color: ANSI.warning256
     },
     {
-      pattern: /(?:build (?:finished|complete|completed|successful|succeeded)|finished building)/i,
+      pattern: /(?:build (?:finished|complete|completed|successful|succeeded)|finished building|\bsuccessful\b)/i,
       color: ANSI.success256
     },
     {
@@ -64,7 +69,11 @@ function highlightBuildLine(line) {
   return match ? `${match.color}${line}${ANSI.reset}` : line;
 }
 
-function createBuildLogHighlighter(onWrite) {
+function isManagedBuildCompatibilityError(line) {
+  return /^Managed Build system manifest file error:.*\buses a null category(?:\s*that)?\b.*\b(?:was )?ignored\b/i.test(line);
+}
+
+function createBuildLogHighlighter(onWrite, onLine = () => {}) {
   let pending = '';
   return {
     write(chunk) {
@@ -73,12 +82,15 @@ function createBuildLogHighlighter(onWrite) {
       pending = lines.pop();
       for (const rawLine of lines) {
         const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+        onLine(line);
         onWrite(`${highlightBuildLine(line)}\r\n`);
       }
     },
     flush() {
       if (pending) {
-        onWrite(highlightBuildLine(pending.endsWith('\r') ? pending.slice(0, -1) : pending));
+        const line = pending.endsWith('\r') ? pending.slice(0, -1) : pending;
+        onLine(line);
+        onWrite(highlightBuildLine(line));
         pending = '';
       }
     }
@@ -88,7 +100,7 @@ function createBuildLogHighlighter(onWrite) {
 function formatBuildBanner(options) {
   const action = options.cleanBuildLabel || options.buildLabel;
   return [
-    `${ANSI.bold}${ANSI.cyan}[Eclipse CDT]${ANSI.reset} ${ANSI.bold}${ANSI.blue}${safeText(action)}${ANSI.reset}`,
+    `${ANSI.bold}${ANSI.cyan}[Eclipse Assistant]${ANSI.reset} ${ANSI.bold}${ANSI.blue}${safeText(action)}${ANSI.reset}`,
     `${ANSI.dim}${safeText(options.projectLabel)}:${ANSI.reset} ${ANSI.bold}${ANSI.white}${safeText(options.projectName)}${ANSI.reset}  ${ANSI.dim}${safeText(options.configurationLabel)}:${ANSI.reset} ${ANSI.bold}${ANSI.magenta}${safeText(options.configuration)}${ANSI.reset}`,
     `${ANSI.dim}${safeText(options.ideLabel)}:${ANSI.reset} ${safeText(options.executable)}`,
     `${ANSI.dim}${'-'.repeat(72)}${ANSI.reset}`,
@@ -127,8 +139,14 @@ function createBuildPseudoterminal(vscode, options) {
   let child;
   let completed = false;
   let startedAt;
-  const stdout = createBuildLogHighlighter((text) => writeEmitter.fire(text));
-  const stderr = createBuildLogHighlighter((text) => writeEmitter.fire(text));
+  let compatibilityErrorCount = 0;
+  const inspectLine = (line) => {
+    if (isManagedBuildCompatibilityError(line)) {
+      compatibilityErrorCount += 1;
+    }
+  };
+  const stdout = createBuildLogHighlighter((text) => writeEmitter.fire(text), inspectLine);
+  const stderr = createBuildLogHighlighter((text) => writeEmitter.fire(text), inspectLine);
 
   const finish = (exitCode, kind, message) => {
     if (completed) {
@@ -161,7 +179,9 @@ function createBuildPseudoterminal(vscode, options) {
         stdout.flush();
         stderr.flush();
         const duration = Math.max(0, (Date.now() - startedAt) / 1000);
-        if (exitCode === 0) {
+        if (compatibilityErrorCount > 0) {
+          finish(2, 'failed', options.incompatibleIdeLabel(compatibilityErrorCount));
+        } else if (exitCode === 0) {
           finish(0, 'success', options.successLabel(duration));
         } else {
           finish(exitCode ?? -1, 'failed', options.failedLabel(exitCode ?? -1, duration));
@@ -186,6 +206,7 @@ module.exports = {
   formatBuildBanner,
   formatBuildResult,
   highlightBuildLine,
+  isManagedBuildCompatibilityError,
   safeText,
   terminalText
 };

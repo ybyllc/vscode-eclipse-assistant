@@ -119,6 +119,10 @@ function serverOutputState(output, debuggerName) {
   return ready ? 'ready' : 'waiting';
 }
 
+function downloadOutputFailed(output) {
+  return /Remote communication error|Target disconnected|not supported by this target|You can't do that|Load failed|Verification failed|Programming (?:flash )?failed|Flash download[^\r\n]*failed|Could not download/i.test(output);
+}
+
 function cancellationError() {
   const error = new Error(t('log.stopped'));
   error.name = 'AbortError';
@@ -200,7 +204,7 @@ function waitForExit(process, label, onOutput, signal, timeoutMilliseconds = 600
     }
     function exited(code) {
       cleanup();
-      const commandFailed = /Remote communication error|Target disconnected|not supported by this target|You can't do that|Load failed/i.test(output);
+      const commandFailed = downloadOutputFailed(output);
       if (code === 0 && !commandFailed) {
         resolve(output);
       } else if (commandFailed) {
@@ -294,16 +298,25 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
     windowsHide: true
   });
   let gdb;
+  let serverRuntimeOutput = '';
   try {
     await waitForServerReady(server, plan.debugger, onOutput, signal);
     onOutput(t('log.connected'));
-    server.stdout?.on('data', (data) => onOutput(data.toString()));
-    server.stderr?.on('data', (data) => onOutput(data.toString()));
+    const forwardServerOutput = (data) => {
+      const text = data.toString();
+      serverRuntimeOutput += text;
+      onOutput(text);
+    };
+    server.stdout?.on('data', forwardServerOutput);
+    server.stderr?.on('data', forwardServerOutput);
     gdb = spawn(plan.gdbExecutable, plan.gdbArguments, {
       cwd: path.dirname(plan.elfPath),
       windowsHide: true
     });
     await waitForExit(gdb, 'GDB', onOutput, signal);
+    if (downloadOutputFailed(serverRuntimeOutput)) {
+      throw new Error(t('error.gdbDownloadFailed'));
+    }
     onOutput(t('log.flashDone'));
   } finally {
     await terminateProcess(gdb);
@@ -314,6 +327,7 @@ async function runFlashPlan(plan, onOutput = () => {}, signal) {
 module.exports = {
   createFlashPlan,
   createJLinkCommanderScript,
+  downloadOutputFailed,
   runFlashPlan,
   serverOutputState,
   splitCommandLine

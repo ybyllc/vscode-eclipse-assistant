@@ -1,13 +1,13 @@
 {
   "name": "eclipse-cdt",
-  "displayName": "Eclipse CDT",
+  "displayName": "Eclipse Assistant",
   "description": "%description%",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "ybyllc",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ybyllc/eclipse-cdt.git"
+    "url": "https://github.com/ybyllc/vscode-eclipse-cdt.git"
   },
   "icon": "media/extension-icon.png",
   "engines": {
@@ -89,57 +89,13 @@
         "command": "eclipseBridge.refreshSidebar",
         "title": "%command.refreshSidebar%",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "eclipseBridge.selectIconTheme",
-        "title": "%command.selectIconTheme%"
-      },
-      {
-        "command": "eclipseBridge.build.tools",
-        "title": "%command.build%",
-        "icon": "$(tools)"
-      },
-      {
-        "command": "eclipseBridge.flash.tools",
-        "title": "%command.flash%",
-        "icon": "$(zap)"
-      },
-      {
-        "command": "eclipseBridge.build.hardware",
-        "title": "%command.build%",
-        "icon": "$(circuit-board)"
-      },
-      {
-        "command": "eclipseBridge.flash.hardware",
-        "title": "%command.flash%",
-        "icon": "$(run)"
-      },
-      {
-        "command": "eclipseBridge.build.build",
-        "title": "%command.build%",
-        "icon": "$(gear)"
-      },
-      {
-        "command": "eclipseBridge.flash.build",
-        "title": "%command.flash%",
-        "icon": "$(play)"
-      },
-      {
-        "command": "eclipseBridge.build.package",
-        "title": "%command.build%",
-        "icon": "$(package)"
-      },
-      {
-        "command": "eclipseBridge.flash.package",
-        "title": "%command.flash%",
-        "icon": "$(cloud-upload)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "eclipseBridge",
-          "title": "Eclipse CDT",
+          "title": "Eclipse Assistant",
           "icon": "media/activitybar-icon.png"
         }
       ]
@@ -163,43 +119,13 @@
       ],
       "editor/title": [
         {
-          "command": "eclipseBridge.build.tools",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == tools",
+          "command": "eclipseBridge.build",
+          "when": "eclipseBridge.projectOpen",
           "group": "navigation@-100"
         },
         {
-          "command": "eclipseBridge.flash.tools",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == tools",
-          "group": "navigation@-99"
-        },
-        {
-          "command": "eclipseBridge.build.hardware",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == hardware",
-          "group": "navigation@-100"
-        },
-        {
-          "command": "eclipseBridge.flash.hardware",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == hardware",
-          "group": "navigation@-99"
-        },
-        {
-          "command": "eclipseBridge.build.build",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == build",
-          "group": "navigation@-100"
-        },
-        {
-          "command": "eclipseBridge.flash.build",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == build",
-          "group": "navigation@-99"
-        },
-        {
-          "command": "eclipseBridge.build.package",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == package",
-          "group": "navigation@-100"
-        },
-        {
-          "command": "eclipseBridge.flash.package",
-          "when": "eclipseBridge.projectOpen && eclipseBridge.iconTheme == package",
+          "command": "eclipseBridge.flash",
+          "when": "eclipseBridge.projectOpen",
           "group": "navigation@-99"
         }
       ]
@@ -217,7 +143,7 @@
       }
     ],
     "configuration": {
-      "title": "Eclipse CDT",
+      "title": "Eclipse Assistant",
       "properties": {
         "eclipseBridge.installationPath": {
           "type": "string",
@@ -254,18 +180,6 @@
           "default": true,
           "scope": "resource",
           "description": "%config.autoImport%"
-        },
-        "eclipseBridge.toolbarIcons": {
-          "type": "string",
-          "enum": [
-            "tools",
-            "hardware",
-            "build",
-            "package"
-          ],
-          "default": "tools",
-          "scope": "window",
-          "description": "%config.toolbarIcons%"
         }
       }
     },

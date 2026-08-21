@@ -186,25 +186,42 @@ function expandIdeVariables(value, ide) {
   return value.replaceAll('${eclipse_home}', eclipseHome);
 }
 
-function resolveElfPath(launch, projectDirectory, overridePath) {
-  if (overridePath) {
-    return path.isAbsolute(overridePath)
-      ? path.normalize(overridePath)
-      : path.resolve(projectDirectory, overridePath);
+function resolveWorkspaceLocation(value, projectDirectory, projectName) {
+  const match = /^\$\{workspace_loc:([^}]*)\}(.*)$/i.exec(value);
+  if (!match) {
+    return undefined;
   }
-  const configuredPath = launch?.useFileForImage && launch.imageFileName
+  const resourceParts = `${match[1]}/${match[2]}`
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean);
+  if (!projectName || resourceParts.shift()?.toLowerCase() !== projectName.toLowerCase()) {
+    return '';
+  }
+  const projectRoot = path.resolve(projectDirectory);
+  const resolved = path.resolve(projectRoot, ...resourceParts);
+  const relative = path.relative(projectRoot, resolved);
+  return relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) ? '' : resolved;
+}
+
+function resolveElfPath(launch, projectDirectory, overridePath) {
+  const configuredPath = overridePath || (launch?.useFileForImage && launch.imageFileName
     ? launch.imageFileName
-    : launch?.programName;
+    : launch?.programName);
   if (!configuredPath) {
     return '';
   }
-  const workspacePrefix = `\${workspace_loc:/${launch.projectName}}`;
-  const expanded = configuredPath.startsWith(workspacePrefix)
-    ? path.join(projectDirectory, configuredPath.slice(workspacePrefix.length).replace(/^[/\\]+/, ''))
-    : configuredPath;
-  return path.isAbsolute(expanded)
-    ? path.normalize(expanded)
-    : path.resolve(projectDirectory, expanded);
+  const workspaceLocation = resolveWorkspaceLocation(
+    configuredPath,
+    projectDirectory,
+    launch?.projectName
+  );
+  if (workspaceLocation !== undefined) {
+    return workspaceLocation;
+  }
+  return path.isAbsolute(configuredPath)
+    ? path.normalize(configuredPath)
+    : path.resolve(projectDirectory, configuredPath);
 }
 
 function toProjectRelativePath(projectDirectory, filePath) {
@@ -219,5 +236,6 @@ module.exports = {
   discoverLaunchConfigurations,
   parseLaunchConfiguration,
   resolveElfPath,
+  resolveWorkspaceLocation,
   toProjectRelativePath
 };

@@ -13,6 +13,7 @@ const { findProjectRoot, readProjectInfo } = require('../src/project-model');
 const {
   createFlashPlan,
   createJLinkCommanderScript,
+  downloadOutputFailed,
   serverOutputState,
   splitCommandLine
 } = require('../src/flash-runner');
@@ -20,6 +21,7 @@ const {
   discoverLaunchConfigurations,
   parseLaunchConfiguration,
   resolveElfPath,
+  resolveWorkspaceLocation,
   toProjectRelativePath
 } = require('../src/launch-model');
 
@@ -299,6 +301,43 @@ test('stores project flash files as portable relative paths', () => {
   );
 });
 
+test('expands Eclipse workspace_loc paths using slash variants and overrides', () => {
+  const projectDirectory = 'E:\\projects\\FC_DC50_IHU';
+  const launch = {
+    projectName: 'FC_DC50_IHU',
+    programName: '${workspace_loc:/FC_DC50_IHU/Debug_FLASH/mcu_app_ota.hex}',
+    useFileForImage: false
+  };
+  assert.equal(
+    resolveElfPath(launch, projectDirectory, ''),
+    path.resolve(projectDirectory, 'Debug_FLASH', 'mcu_app_ota.hex')
+  );
+  assert.equal(
+    resolveWorkspaceLocation(
+      '${workspace_loc:\\FC_DC50_IHU\\Debug_FLASH\\FC_DC50_IHU.hex}',
+      projectDirectory,
+      'FC_DC50_IHU'
+    ),
+    path.resolve(projectDirectory, 'Debug_FLASH', 'FC_DC50_IHU.hex')
+  );
+  assert.equal(
+    resolveElfPath(
+      launch,
+      projectDirectory,
+      '${workspace_loc:/FC_DC50_IHU}/Debug_FLASH/FC_DC50_IHU.hex'
+    ),
+    path.resolve(projectDirectory, 'Debug_FLASH', 'FC_DC50_IHU.hex')
+  );
+  assert.equal(
+    resolveWorkspaceLocation(
+      '${workspace_loc:/OTHER_PROJECT/Debug/app.elf}',
+      projectDirectory,
+      'FC_DC50_IHU'
+    ),
+    ''
+  );
+});
+
 test('creates a flash plan from vendor GDB server settings', () => {
   const plan = createFlashPlan({
     name: 'demo debug',
@@ -371,4 +410,11 @@ test('waits for a J-Link target connection instead of its listening socket', () 
     serverOutputState('Info : Listening on port 3333 for gdb connections', 'GD-Link / OpenOCD'),
     'ready'
   );
+});
+
+test('treats GDB server programming and verification errors as flash failures', () => {
+  assert.equal(downloadOutputFailed('ERROR: Verification failed @ address 0x00030400'), true);
+  assert.equal(downloadOutputFailed('Programming flash [....................] Done.'), false);
+  assert.equal(downloadOutputFailed('Flash download successful'), false);
+  assert.equal(downloadOutputFailed('Flash download failed'), true);
 });

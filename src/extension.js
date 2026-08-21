@@ -16,7 +16,6 @@ const { t } = require('./i18n');
 const CONFIG_SECTION = 'eclipseBridge';
 const LEGACY_CONFIG_SECTION = 'gd32EclipseBridge';
 const TASK_TYPE = 'eclipse-cdt';
-const ICON_THEMES = ['tools', 'hardware', 'build', 'package'];
 let extensionContext;
 let flashOutput;
 let flashAbortController;
@@ -174,6 +173,7 @@ async function createTask(mode, definition = {}) {
     failedLabel: (exitCode, duration, detail) => detail
       ? t('terminal.failedWithDetail', exitCode, detail)
       : t('terminal.failed', exitCode, duration.toFixed(1)),
+    incompatibleIdeLabel: (count) => t('terminal.incompatibleIde', count),
     stoppedLabel: t('terminal.stopped')
   }));
   const task = new vscode.Task(
@@ -182,7 +182,7 @@ async function createTask(mode, definition = {}) {
     mode === 'cleanBuild'
       ? `${t('command.cleanBuild')} ${context.projectName} (${context.configuration})`
       : `${t('command.build')} ${context.projectName} (${context.configuration})`,
-    'Eclipse CDT',
+    'Eclipse Assistant',
     execution,
     ['$gcc']
   );
@@ -406,32 +406,6 @@ async function toggleAutoImport() {
   }
 }
 
-async function setIconTheme(theme) {
-  if (!ICON_THEMES.includes(theme)) {
-    return;
-  }
-  await vscode.workspace.getConfiguration(CONFIG_SECTION).update(
-    'toolbarIcons',
-    theme,
-    vscode.ConfigurationTarget.Global
-  );
-  await vscode.commands.executeCommand('setContext', 'eclipseBridge.iconTheme', theme);
-  await vscode.window.showInformationMessage(t('info.iconThemeChanged', t(`command.iconTheme.${theme}`)));
-}
-
-async function selectIconTheme() {
-  const selected = await vscode.window.showQuickPick(
-    ICON_THEMES.map((theme) => ({
-      label: t(`command.iconTheme.${theme}`),
-      theme
-    })),
-    { placeHolder: t('pick.iconTheme') }
-  );
-  if (selected) {
-    await setIconTheme(selected.theme);
-  }
-}
-
 async function getSidebarModel(projectDirectory) {
   const root = projectDirectory || (await discoverProjectRoots())[0];
   if (!root) {
@@ -628,7 +602,7 @@ async function showProjectInfo() {
 
 function activate(context) {
   extensionContext = context;
-  flashOutput = vscode.window.createOutputChannel('Eclipse CDT Flash');
+  flashOutput = vscode.window.createOutputChannel('Eclipse Assistant Flash');
   const sidebarProvider = new SidebarProvider(getSidebarModel, handleSidebarAction);
   const taskProvider = vscode.tasks.registerTaskProvider(TASK_TYPE, {
     async provideTasks() {
@@ -649,9 +623,6 @@ function activate(context) {
     }
   });
 
-  const iconTheme = vscode.workspace.getConfiguration(CONFIG_SECTION).get('toolbarIcons', 'tools');
-  void vscode.commands.executeCommand('setContext', 'eclipseBridge.iconTheme', iconTheme);
-
   context.subscriptions.push(
     taskProvider,
     flashOutput,
@@ -661,10 +632,6 @@ function activate(context) {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration(CONFIG_SECTION)) {
         void sidebarProvider.refresh();
-        if (event.affectsConfiguration(`${CONFIG_SECTION}.toolbarIcons`)) {
-          const theme = vscode.workspace.getConfiguration(CONFIG_SECTION).get('toolbarIcons', 'tools');
-          void vscode.commands.executeCommand('setContext', 'eclipseBridge.iconTheme', theme);
-        }
       }
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -683,15 +650,8 @@ function activate(context) {
     vscode.commands.registerCommand('eclipseBridge.selectWorkspace', selectWorkspace),
     vscode.commands.registerCommand('eclipseBridge.toggleAutoImport', toggleAutoImport),
     vscode.commands.registerCommand('eclipseBridge.refreshSidebar', () => sidebarProvider.refresh()),
-    vscode.commands.registerCommand('eclipseBridge.showProjectInfo', showProjectInfo),
-    vscode.commands.registerCommand('eclipseBridge.selectIconTheme', selectIconTheme)
+    vscode.commands.registerCommand('eclipseBridge.showProjectInfo', showProjectInfo)
   );
-  for (const theme of ICON_THEMES) {
-    context.subscriptions.push(
-      vscode.commands.registerCommand(`eclipseBridge.build.${theme}`, () => executeBuild('build')),
-      vscode.commands.registerCommand(`eclipseBridge.flash.${theme}`, executeFlash)
-    );
-  }
   void updateProjectContext();
 }
 
